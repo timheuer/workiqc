@@ -1,0 +1,765 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Page
+    x:Class="WorkIQC.App.Views.MainPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:controls="using:WorkIQC.App.Controls"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+    xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+    Background="Transparent"
+    Loaded="OnLoaded"
+    mc:Ignorable="d">
+
+    <Grid Background="Transparent">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="44" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <Grid x:Name="TitleBarDragRegion"
+              Grid.Row="0"
+              Background="Transparent">
+            <StackPanel Orientation="Horizontal"
+                        Spacing="10"
+                        Margin="20,8,20,4">
+                <FontIcon Glyph="&#xE8BD;"
+                          VerticalAlignment="Center"
+                          FontSize="14"
+                          Foreground="{ThemeResource AccentBrush}" />
+                <TextBlock Text="WorkIQ"
+                           VerticalAlignment="Center"
+                           FontSize="15"
+                           FontWeight="SemiBold"
+                           Foreground="{ThemeResource TextPrimaryBrush}" />
+            </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1" Margin="20,0,20,20">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="288" />
+                <ColumnDefinition Width="20" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Background="{ThemeResource RailBackgroundBrush}"
+                    BorderBrush="{ThemeResource RailBorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="{StaticResource RailCorners}">
+                <Grid Padding="16">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="12">
+                        <Border Width="40"
+                                Height="40"
+                                Background="{ThemeResource SuggestionAccentBrush}"
+                                CornerRadius="20"
+                                HorizontalAlignment="Left">
+                            <FontIcon Glyph="&#xE8BD;"
+                                      FontSize="18"
+                                      Foreground="{ThemeResource AccentBrush}"
+                                      HorizontalAlignment="Center"
+                                      VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock Text="WorkIQ"
+                                   VerticalAlignment="Center"
+                                   FontSize="26"
+                                   FontWeight="SemiBold"
+                                   Foreground="{ThemeResource TextPrimaryBrush}" />
+                    </StackPanel>
+
+                    <Button Grid.Row="1"
+                            Style="{StaticResource NavRailButton}"
+                            Margin="0,24,0,18"
+                            Click="OnNewChatClicked">
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <FontIcon Glyph="&#xE710;"
+                                      FontSize="14"
+                                      Foreground="{ThemeResource AccentBrush}" />
+                            <TextBlock Text="New conversation"
+                                       FontWeight="SemiBold" />
+                        </StackPanel>
+                    </Button>
+
+                    <Grid Grid.Row="2">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <TextBlock Style="{StaticResource SectionHeader}"
+                                   Margin="8,0,0,12"
+                                   Text="Recent threads" />
+
+                        <ListView x:Name="ConversationList"
+                                  Grid.Row="1"
+                                  Margin="0"
+                                  Padding="0"
+                                  ItemsSource="{Binding SidebarItems}"
+                                  SelectionChanged="OnConversationSelectionChanged"
+                                  SelectionMode="Single"
+                                  Background="Transparent">
+                            <ListView.ItemContainerStyle>
+                                <Style TargetType="ListViewItem">
+                                    <Setter Property="Padding" Value="0" />
+                                    <Setter Property="Margin" Value="0,0,0,8" />
+                                    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                    <Setter Property="MinHeight" Value="0" />
+                                    <Setter Property="Background" Value="Transparent" />
+                                    <Setter Property="BorderThickness" Value="0" />
+                                </Style>
+                            </ListView.ItemContainerStyle>
+                            <ListView.ItemTemplate>
+                                <DataTemplate>
+                                    <Border Background="{Binding BackgroundBrush}"
+                                            BorderBrush="{Binding BorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="18"
+                                            Padding="14,12">
+                                        <Grid RowSpacing="6">
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <TextBlock Text="{Binding Title}"
+                                                       Foreground="{Binding TitleBrush}"
+                                                       FontWeight="SemiBold"
+                                                       TextTrimming="CharacterEllipsis"
+                                                       MaxLines="1" />
+                                            <Button Grid.Column="1"
+                                                    Padding="8"
+                                                    Margin="8,-4,0,0"
+                                                    VerticalAlignment="Top"
+                                                    HorizontalAlignment="Right"
+                                                    Background="Transparent"
+                                                    BorderBrush="Transparent"
+                                                    Foreground="{ThemeResource TextTertiaryBrush}"
+                                                    Click="OnDeleteConversationClicked"
+                                                    Tag="{Binding}">
+                                                <ToolTipService.ToolTip>
+                                                    <ToolTip Content="Delete thread" />
+                                                </ToolTipService.ToolTip>
+                                                <FontIcon Glyph="&#xE74D;" FontSize="12" />
+                                            </Button>
+                                            <TextBlock Grid.Column="2"
+                                                       Text="{Binding TimestampLabel}"
+                                                       Foreground="{ThemeResource TextTertiaryBrush}"
+                                                       FontSize="11"
+                                                       Margin="12,1,0,0"
+                                                       VerticalAlignment="Top" />
+
+                                            <TextBlock Grid.Row="1"
+                                                       Grid.ColumnSpan="3"
+                                                       Text="{Binding Preview}"
+                                                       Foreground="{Binding PreviewBrush}"
+                                                       FontSize="12"
+                                                       TextWrapping="WrapWholeWords"
+                                                       MaxLines="2"
+                                                       LineHeight="18"
+                                                       TextTrimming="CharacterEllipsis" />
+                                        </Grid>
+                                    </Border>
+                                </DataTemplate>
+                            </ListView.ItemTemplate>
+                        </ListView>
+                    </Grid>
+
+                    <Button Grid.Row="3"
+                            HorizontalAlignment="Left"
+                            Margin="2,16,0,0"
+                            Style="{StaticResource SubtleButton}"
+                            Click="OnSettingsClicked">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="{Binding SettingsButtonGlyph}" FontSize="14" />
+                            <TextBlock Text="Settings" />
+                        </StackPanel>
+                    </Button>
+                </Grid>
+            </Border>
+
+            <Grid Grid.Column="2">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Border Grid.Row="0"
+                        Background="{ThemeResource SurfaceBackgroundBrush}"
+                        BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource SurfaceCorners}">
+                    <Grid Padding="24">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                        </Grid.RowDefinitions>
+
+                        <Border Grid.Row="0"
+                                Margin="0,0,0,18"
+                                Padding="16,14"
+                                Background="{ThemeResource SurfaceSecondaryBackgroundBrush}"
+                                BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="{StaticResource CardCorners}"
+                                Visibility="{Binding SetupCardVisibility}">
+                            <Grid ColumnSpacing="16">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+
+                                <StackPanel Spacing="4">
+                                    <TextBlock Text="{Binding SetupTitle}"
+                                               FontSize="15"
+                                               FontWeight="SemiBold"
+                                               Foreground="{ThemeResource TextPrimaryBrush}" />
+                                    <TextBlock Text="{Binding SetupSummaryText}"
+                                               Foreground="{ThemeResource TextSecondaryBrush}"
+                                               TextWrapping="Wrap"
+                                               LineHeight="18"
+                                               MaxLines="2"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <Button Grid.Column="1"
+                                        VerticalAlignment="Center"
+                                        Style="{StaticResource SubtleButton}"
+                                        Click="OnSettingsClicked"
+                                        Content="Open settings" />
+                            </Grid>
+                        </Border>
+
+                        <Grid Grid.Row="1">
+                            <ScrollViewer Visibility="{Binding SettingsSurfaceVisibility}"
+                                          VerticalScrollMode="Auto"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <StackPanel Spacing="18">
+                                    <Border Padding="22"
+                                            Background="{ThemeResource SurfaceSecondaryBackgroundBrush}"
+                                            BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="{StaticResource CardCorners}">
+                                        <StackPanel Spacing="18">
+                                            <Grid ColumnSpacing="16">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <StackPanel Spacing="4">
+                                                    <TextBlock Text="{Binding SetupTitle}"
+                                                               FontSize="20"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{ThemeResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="{Binding SetupSummaryText}"
+                                                               Foreground="{ThemeResource TextSecondaryBrush}"
+                                                               TextWrapping="Wrap"
+                                                               LineHeight="20"
+                                                               MaxLines="3"
+                                                               TextTrimming="CharacterEllipsis" />
+                                                </StackPanel>
+
+                                                <StackPanel Grid.Column="1"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Top"
+                                                            Spacing="12">
+                                                    <Button HorizontalAlignment="Right"
+                                                            Style="{StaticResource SubtleButton}"
+                                                            Click="OnBackToConversationClicked"
+                                                            Content="Back to chat" />
+                                                    <StackPanel HorizontalAlignment="Right"
+                                                                Spacing="2"
+                                                                Visibility="{Binding ConnectionBadgeVisibility}">
+                                                        <TextBlock Text="App status"
+                                                                   HorizontalAlignment="Right"
+                                                                   Foreground="{ThemeResource TextTertiaryBrush}"
+                                                                   FontSize="11" />
+                                                        <TextBlock Text="{Binding ConnectionBadgeText}"
+                                                                   HorizontalAlignment="Right"
+                                                                   Foreground="{ThemeResource TextSecondaryBrush}"
+                                                                   FontSize="12" />
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <Grid ColumnSpacing="14">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="*" />
+                                                </Grid.ColumnDefinitions>
+
+                                                <Border Padding="16"
+                                                        Background="{ThemeResource SurfaceElevatedBackgroundBrush}"
+                                                        BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="{StaticResource CardCorners}">
+                                                    <StackPanel Spacing="10">
+                                                        <TextBlock Text="Complete WorkIQ consent"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{ThemeResource TextPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding EulaStepStatusText}"
+                                                                   Foreground="{ThemeResource AccentBrush}"
+                                                                   FontSize="12" />
+                                                        <TextBlock Text="{Binding EulaStepDescription}"
+                                                                   Foreground="{ThemeResource TextSecondaryBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   FontSize="12"
+                                                                   LineHeight="18" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <Button Style="{StaticResource SubtleButton}"
+                                                                    Click="OnOpenWorkIqTermsClicked"
+                                                                    Content="Review terms" />
+                                                            <Button Style="{StaticResource NavRailButton}"
+                                                                    Click="OnAcceptWorkIqTermsClicked"
+                                                                    Content="Complete consent bootstrap" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+
+                                                <Border Grid.Column="1"
+                                                        Padding="16"
+                                                        Background="{ThemeResource SurfaceElevatedBackgroundBrush}"
+                                                        BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                                        BorderThickness="1"
+                                                        CornerRadius="{StaticResource CardCorners}">
+                                                    <StackPanel Spacing="10">
+                                                        <TextBlock Text="Launch Copilot sign-in"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{ThemeResource TextPrimaryBrush}" />
+                                                        <TextBlock Text="{Binding AuthStepStatusText}"
+                                                                   Foreground="{ThemeResource AccentBrush}"
+                                                                   FontSize="12" />
+                                                        <TextBlock Text="{Binding AuthStepDescription}"
+                                                                   Foreground="{ThemeResource TextSecondaryBrush}"
+                                                                   TextWrapping="Wrap"
+                                                                   FontSize="12"
+                                                                   LineHeight="18" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="8">
+                                                            <Button Style="{StaticResource NavRailButton}"
+                                                                    Click="OnLaunchCopilotSignInClicked"
+                                                                    Content="Open sign-in bootstrap" />
+                                                            <Button Style="{StaticResource SubtleButton}"
+                                                                    Click="OnRecheckSetupClicked"
+                                                                    Content="Recheck bootstrap" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </Border>
+                                            </Grid>
+
+                                        </StackPanel>
+                                    </Border>
+
+                                    <Border Padding="22"
+                                            Margin="0,0,0,2"
+                                            Background="{ThemeResource SurfaceSecondaryBackgroundBrush}"
+                                            BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="{StaticResource CardCorners}">
+                                        <Grid ColumnSpacing="18">
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="2*" />
+                                                <ColumnDefinition Width="*" />
+                                            </Grid.ColumnDefinitions>
+
+                                            <StackPanel Spacing="8">
+                                                <TextBlock Text="Current blockers"
+                                                           Style="{StaticResource SectionHeader}" />
+                                                <ItemsControl ItemsSource="{Binding SetupBlockers}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}"
+                                                                       Foreground="{ThemeResource TextSecondaryBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       FontSize="12"
+                                                                       LineHeight="18"
+                                                                       Margin="0,0,0,6" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                            </StackPanel>
+
+                                            <StackPanel Grid.Column="1"
+                                                        Spacing="8">
+                                                <TextBlock Text="Environment prerequisites"
+                                                           Style="{StaticResource SectionHeader}" />
+                                                <ItemsControl ItemsSource="{Binding SetupPrerequisites}">
+                                                    <ItemsControl.ItemTemplate>
+                                                        <DataTemplate>
+                                                            <TextBlock Text="{Binding}"
+                                                                       Foreground="{ThemeResource TextSecondaryBrush}"
+                                                                       TextWrapping="Wrap"
+                                                                       FontSize="12"
+                                                                       LineHeight="18"
+                                                                       Margin="0,0,0,6" />
+                                                        </DataTemplate>
+                                                    </ItemsControl.ItemTemplate>
+                                                </ItemsControl>
+                                                <TextBlock Text="App-owned paths"
+                                                           Style="{StaticResource SectionHeader}" />
+                                                <TextBlock Text="{Binding SetupPackageReferenceText}"
+                                                           Foreground="{ThemeResource TextPrimaryBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding SetupWorkspaceText}"
+                                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding SetupMcpConfigText}"
+                                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                </StackPanel>
+                            </ScrollViewer>
+
+                            <Grid Visibility="{Binding ConversationSurfaceVisibility}">
+                            <ListView x:Name="MessagesList"
+                                       Padding="0"
+                                       ItemsSource="{Binding Messages}"
+                                       SelectionMode="None"
+                                       Background="Transparent"
+                                       ContainerContentChanging="OnMessagesListContainerContentChanging"
+                                       SizeChanged="OnMessagesListSizeChanged"
+                                       Visibility="{Binding TranscriptVisibility}">
+                                <ListView.ItemContainerStyle>
+                                    <Style TargetType="ListViewItem">
+                                        <Setter Property="Padding" Value="0" />
+                                        <Setter Property="Margin" Value="0,0,0,14" />
+                                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                                        <Setter Property="MinHeight" Value="0" />
+                                    </Style>
+                                </ListView.ItemContainerStyle>
+                                <ListView.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid HorizontalAlignment="Stretch">
+                                            <Border x:Name="MessageBubbleBorder"
+                                                    HorizontalAlignment="{Binding BubbleAlignment}"
+                                                    Background="{Binding BubbleBrush}"
+                                                    BorderBrush="{Binding BorderBrush}"
+                                                    BorderThickness="1"
+                                                    CornerRadius="24"
+                                                    Padding="18,16">
+                                                <StackPanel Spacing="12"
+                                                            HorizontalAlignment="Stretch">
+                                                    <Grid ColumnSpacing="12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="Auto" />
+                                                        </Grid.ColumnDefinitions>
+
+                                                        <Border Width="34"
+                                                                Height="34"
+                                                                Background="{Binding RoleBadgeBrush}"
+                                                                CornerRadius="17"
+                                                                VerticalAlignment="Top">
+                                                            <FontIcon Glyph="{Binding AvatarGlyph}"
+                                                                      FontSize="15"
+                                                                      Foreground="{Binding RoleBadgeForeground}"
+                                                                      HorizontalAlignment="Center"
+                                                                      VerticalAlignment="Center" />
+                                                        </Border>
+
+                                                        <StackPanel Grid.Column="1"
+                                                                    Spacing="2"
+                                                                    VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Author}"
+                                                                       Foreground="{Binding HeaderBrush}"
+                                                                       FontWeight="SemiBold" />
+                                                            <TextBlock Text="{Binding RoleLabel}"
+                                                                       Foreground="{Binding BodyBrush}"
+                                                                       FontSize="11" />
+                                                        </StackPanel>
+
+                                                        <StackPanel Grid.Column="2"
+                                                                    Orientation="Horizontal"
+                                                                    Spacing="8"
+                                                                    VerticalAlignment="Center">
+                                                            <ProgressRing IsActive="True"
+                                                                          Width="14"
+                                                                          Height="14"
+                                                                          Foreground="{Binding BodyBrush}"
+                                                                          Visibility="{Binding StreamingVisibility}" />
+                                                            <TextBlock Text="Thinking…"
+                                                                       Foreground="{Binding BodyBrush}"
+                                                                       FontSize="11"
+                                                                       Visibility="{Binding StreamingVisibility}" />
+                                                            <TextBlock Text="{Binding FormattedTimestamp}"
+                                                                       Foreground="{Binding BodyBrush}"
+                                                                       FontSize="11" />
+                                                        </StackPanel>
+                                                    </Grid>
+
+                                                    <StackPanel Orientation="Horizontal"
+                                                                Spacing="6"
+                                                                Padding="4,8"
+                                                                Visibility="{Binding TypingIndicatorVisibility}">
+                                                        <ProgressRing IsActive="True"
+                                                                      Width="16"
+                                                                      Height="16"
+                                                                      Foreground="{Binding BodyBrush}" />
+                                                        <TextBlock Text="WorkIQ is thinking…"
+                                                                   Foreground="{Binding BodyBrush}"
+                                                                   FontSize="13"
+                                                                   FontStyle="Italic"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
+
+                                                    <controls:MarkdownMessageView x:Name="MarkdownContentView"
+                                                                                  HorizontalAlignment="Stretch"
+                                                                                  Markdown="{Binding Content}"
+                                                                                  ForegroundBrush="{Binding BodyBrush}"
+                                                                                  BackgroundBrush="{Binding BubbleBrush}" />
+                                                </StackPanel>
+                                            </Border>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ListView.ItemTemplate>
+                            </ListView>
+
+                            <Grid Visibility="{Binding EmptyStateVisibility}"
+                                  VerticalAlignment="Center"
+                                  HorizontalAlignment="Stretch"
+                                  Padding="40,32">
+                                <StackPanel HorizontalAlignment="Center"
+                                            MaxWidth="760"
+                                            Spacing="24">
+                                    <Border Width="76"
+                                            Height="76"
+                                            Background="{ThemeResource SuggestionAccentBrush}"
+                                            BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                            BorderThickness="1"
+                                            CornerRadius="38"
+                                            HorizontalAlignment="Center">
+                                        <FontIcon Glyph="&#xE8BD;"
+                                                  FontSize="30"
+                                                  Foreground="{ThemeResource AccentBrush}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center" />
+                                    </Border>
+
+                                    <StackPanel Spacing="8">
+                                        <TextBlock Text="{Binding EmptyStateTitle}"
+                                                   FontSize="34"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{ThemeResource TextPrimaryBrush}"
+                                                   TextAlignment="Center" />
+                                        <TextBlock Text="{Binding EmptyStateDescription}"
+                                                   FontSize="15"
+                                                   Foreground="{ThemeResource TextSecondaryBrush}"
+                                                   TextAlignment="Center"
+                                                   TextWrapping="Wrap"
+                                                   LineHeight="22" />
+                                    </StackPanel>
+
+                                    <Grid Margin="0,8,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="18" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="18" />
+                                            <ColumnDefinition Width="*" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <Button Style="{StaticResource SuggestionCard}"
+                                                Click="OnSuggestionClicked"
+                                                Tag="Summarize my recent emails and meetings">
+                                            <StackPanel Spacing="12">
+                                                <Border Width="36"
+                                                        Height="36"
+                                                        Background="{ThemeResource SuggestionAccentBrush}"
+                                                        CornerRadius="18"
+                                                        HorizontalAlignment="Left">
+                                                    <FontIcon Glyph="&#xE715;"
+                                                              FontSize="16"
+                                                              Foreground="{ThemeResource AccentBrush}"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Text="Summarize my recent emails and meetings"
+                                                           Foreground="{ThemeResource TextPrimaryBrush}"
+                                                           TextWrapping="Wrap"
+                                                           FontWeight="SemiBold"
+                                                           LineHeight="20" />
+                                                <TextBlock Text="Catch up on the day without bouncing between Outlook and Teams."
+                                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           LineHeight="18" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="2"
+                                                Style="{StaticResource SuggestionCard}"
+                                                Click="OnSuggestionClicked"
+                                                Tag="What are my priorities for today?">
+                                            <StackPanel Spacing="12">
+                                                <Border Width="36"
+                                                        Height="36"
+                                                        Background="{ThemeResource SuggestionAccentBrush}"
+                                                        CornerRadius="18"
+                                                        HorizontalAlignment="Left">
+                                                    <FontIcon Glyph="&#xE8D1;"
+                                                              FontSize="16"
+                                                              Foreground="{ThemeResource AccentBrush}"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Text="What are my priorities for today?"
+                                                           Foreground="{ThemeResource TextPrimaryBrush}"
+                                                           TextWrapping="Wrap"
+                                                           FontWeight="SemiBold"
+                                                           LineHeight="20" />
+                                                <TextBlock Text="Pull the likely agenda from your inbox, meetings, and shared docs."
+                                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           LineHeight="18" />
+                                            </StackPanel>
+                                        </Button>
+
+                                        <Button Grid.Column="4"
+                                                Style="{StaticResource SuggestionCard}"
+                                                Click="OnSuggestionClicked"
+                                                Tag="Draft a follow-up email for my last meeting">
+                                            <StackPanel Spacing="12">
+                                                <Border Width="36"
+                                                        Height="36"
+                                                        Background="{ThemeResource SuggestionAccentBrush}"
+                                                        CornerRadius="18"
+                                                        HorizontalAlignment="Left">
+                                                    <FontIcon Glyph="&#xE70F;"
+                                                              FontSize="16"
+                                                              Foreground="{ThemeResource AccentBrush}"
+                                                              HorizontalAlignment="Center"
+                                                              VerticalAlignment="Center" />
+                                                </Border>
+                                                <TextBlock Text="Draft a follow-up email for my last meeting"
+                                                           Foreground="{ThemeResource TextPrimaryBrush}"
+                                                           TextWrapping="Wrap"
+                                                           FontWeight="SemiBold"
+                                                           LineHeight="20" />
+                                                <TextBlock Text="Turn the latest notes into a send-ready recap with next steps."
+                                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                                           FontSize="12"
+                                                           TextWrapping="Wrap"
+                                                           LineHeight="18" />
+                                            </StackPanel>
+                                        </Button>
+                                    </Grid>
+                                </StackPanel>
+                            </Grid>
+                            </Grid>
+                            </Grid>
+                </Grid>
+                </Border>
+
+                <Border Grid.Row="1"
+                        Margin="0,16,0,0"
+                        Padding="18"
+                        Background="{ThemeResource SurfaceSecondaryBackgroundBrush}"
+                        BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                        BorderThickness="1"
+                        CornerRadius="{StaticResource ComposerCorners}">
+                    <Grid RowSpacing="12">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+
+                        <Grid ColumnSpacing="16">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <StackPanel Spacing="4">
+                                <TextBlock Text="{Binding ComposerHintText}"
+                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                           FontSize="13"
+                                           TextWrapping="Wrap" />
+                                <TextBlock Text="{Binding ComposerStatusText}"
+                                           Foreground="{ThemeResource TextTertiaryBrush}"
+                                           FontSize="12"
+                                           TextWrapping="Wrap" />
+                            </StackPanel>
+
+                            <StackPanel Grid.Column="1"
+                                        Orientation="Horizontal"
+                                        Spacing="10"
+                                        VerticalAlignment="Center">
+                                <TextBlock Text="{Binding ConnectionBadgeText}"
+                                           Foreground="{ThemeResource TextSecondaryBrush}"
+                                           FontSize="12"
+                                           Visibility="{Binding ConnectionBadgeVisibility}" />
+                                <ProgressRing IsActive="{Binding IsBusyIndicatorActive}"
+                                              Width="16"
+                                              Height="16"
+                                              Visibility="{Binding ActivityBadgeVisibility}"
+                                              Foreground="{ThemeResource AccentBrush}" />
+                                <TextBlock Text="{Binding ActivityBadgeText}"
+                                           Foreground="{ThemeResource AccentBrush}"
+                                           FontSize="12"
+                                           Visibility="{Binding ActivityBadgeVisibility}" />
+                            </StackPanel>
+                        </Grid>
+
+                        <Grid Grid.Row="1"
+                              ColumnSpacing="12">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+
+                            <Border Background="{ThemeResource SurfaceElevatedBackgroundBrush}"
+                                    BorderBrush="{ThemeResource SurfaceBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="{StaticResource ComposerCorners}">
+                                <TextBox x:Name="ComposerTextBox"
+                                         Text="{Binding ComposerText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                         PlaceholderText="Ask WorkIQ about a meeting, doc, or teammate."
+                                         AcceptsReturn="True"
+                                         TextWrapping="Wrap"
+                                         MaxHeight="200"
+                                         BorderThickness="0"
+                                         Background="Transparent"
+                                         Padding="18,14"
+                                         Foreground="{ThemeResource TextPrimaryBrush}"
+                                         FontSize="14"
+                                         PreviewKeyDown="OnComposerPreviewKeyDown" />
+                            </Border>
+
+                            <Button Grid.Column="1"
+                                    Width="52"
+                                    Height="52"
+                                    VerticalAlignment="Bottom"
+                                    Click="OnSendClicked"
+                                    IsEnabled="{Binding CanSend}"
+                                    Background="{ThemeResource AccentBrush}"
+                                    Foreground="{ThemeResource SendButtonForegroundBrush}"
+                                    CornerRadius="26">
+                                <FontIcon Glyph="&#xE724;"
+                                          FontSize="18"
+                                          Foreground="{ThemeResource SendButtonForegroundBrush}" />
+                            </Button>
+                        </Grid>
+                    </Grid>
+                </Border>
+            </Grid>
+        </Grid>
+    </Grid>
+</Page>

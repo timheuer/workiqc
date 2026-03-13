@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net9.0-windows10.0.22621.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\WorkIQC.Runtime.Abstractions\WorkIQC.Runtime.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="GitHub.Copilot.SDK" Version="0.1.33-preview.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\WorkIQC.Runtime.Shared\**\*.cs"
+             Exclude="..\WorkIQC.Runtime.Shared\bin\**\*;..\WorkIQC.Runtime.Shared\obj\**\*">
+      <Link>RuntimeShared\%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </Compile>
+  </ItemGroup>
+
+</Project>

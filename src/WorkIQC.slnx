@@ -1,0 +1,11 @@
+<Solution>
+  <Project Path="WorkIQC.App.Tests/WorkIQC.App.Tests.csproj" />
+  <Project Path="WorkIQC.App/WorkIQC.App.csproj">
+    <Platform Solution="Debug|*" Project="x64" />
+  </Project>
+  <Project Path="WorkIQC.Persistence/WorkIQC.Persistence.csproj" />
+  <Project Path="WorkIQC.Persistence.Tests/WorkIQC.Persistence.Tests.csproj" />
+  <Project Path="WorkIQC.Runtime.Tests/WorkIQC.Runtime.Tests.csproj" />
+  <Project Path="WorkIQC.Runtime.Abstractions/WorkIQC.Runtime.Abstractions.csproj" />
+  <Project Path="WorkIQC.Runtime/WorkIQC.Runtime.csproj" />
+</Solution>
