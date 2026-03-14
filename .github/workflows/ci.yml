@@ -22,13 +22,13 @@ jobs:
         run: dotnet restore src/WorkIQC.slnx
 
       - name: Build
-        run: dotnet build src/WorkIQC.slnx --no-restore -c Release -p:Platform=x64
+        run: dotnet build src/WorkIQC.slnx --no-restore -c Release
 
       - name: Test
-        run: dotnet test src/WorkIQC.slnx --no-build -c Release -p:Platform=x64
+        run: dotnet test src/WorkIQC.slnx --no-build -c Release
 
       - name: Publish
-        run: dotnet publish src/WorkIQC.App/WorkIQC.App.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained -o publish/WorkICQ
+        run: dotnet publish src/WorkIQC.App/WorkIQC.App.csproj -c Release -r win-x64 --self-contained -o publish/WorkICQ
 
       - name: Upload artifact
         uses: actions/upload-artifact@v6
