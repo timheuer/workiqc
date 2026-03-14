@@ -17,6 +17,69 @@ public sealed class MainPageViewModelTests
     }
 
     [TestMethod]
+    public async Task InitializeAsync_WhenAccessibleModelsExist_LoadsModelPickerOptions()
+    {
+        var service = new FakeChatShellService(CreateShellState())
+        {
+            AvailableModels =
+            [
+                new ShellModelOption("gpt-5", "GPT-5"),
+                new ShellModelOption("claude-sonnet-4.5", "Claude Sonnet 4.5")
+            ]
+        };
+        var viewModel = new MainPageViewModel(service);
+
+        await viewModel.InitializeAsync();
+
+        Assert.HasCount(2, viewModel.AvailableModels);
+        Assert.AreEqual(Visibility.Visible, viewModel.ModelPickerVisibility);
+        Assert.AreEqual("gpt-5", viewModel.SelectedModelId);
+        Assert.IsNotNull(viewModel.SelectedModelOption);
+        Assert.AreEqual("gpt-5", viewModel.SelectedModelOption.Id);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_WhenModelIsSelected_ForwardsSelectedModelToShellService()
+    {
+        var conversation = CreateConversation(
+            "thread-1",
+            "Model thread",
+            DateTime.Now.AddMinutes(-5),
+            "Previous answer",
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Previous answer", DateTime.Now.AddMinutes(-5)));
+        ShellSendRequest? capturedRequest = null;
+        var service = new FakeChatShellService(CreateShellState(conversation))
+        {
+            AvailableModels = [new ShellModelOption("gpt-5", "GPT-5")],
+            OnSendAsync = (request, _) =>
+            {
+                capturedRequest = request;
+                return Task.FromResult(new ShellSendResponse(
+                    conversation.Id,
+                    conversation.Title,
+                    IsPersisted: true,
+                    IsDraft: false,
+                    SessionId: "session-thread-1",
+                    ConnectionBadgeText: "WorkICQ runtime",
+                    SidebarFooterText: "Streaming from selected model.",
+                    ResponseStream: SingleChunkResponseStream("Done."),
+                    ActivityStream: EmptyActivityStream()));
+            }
+        };
+        var viewModel = new MainPageViewModel(service);
+
+        await viewModel.InitializeAsync();
+        viewModel.SelectedModelId = "gpt-5";
+        viewModel.ComposerText = "Use selected model";
+
+        await viewModel.SendAsync();
+        await WaitForConditionAsync(() => capturedRequest is not null);
+
+        Assert.IsNotNull(capturedRequest);
+        Assert.AreEqual("gpt-5", capturedRequest.ModelId);
+    }
+
+    [TestMethod]
     public async Task ShowSettings_AndReturnToConversation_PreservesSelectedThread()
     {
         var shellState = CreateShellState(
@@ -292,6 +355,12 @@ public sealed class MainPageViewModelTests
         }
     }
 
+    private static async IAsyncEnumerable<string> SingleChunkResponseStream(string chunk)
+    {
+        yield return chunk;
+        await Task.Yield();
+    }
+
     private sealed class FakeChatShellService : IChatShellService
     {
         public FakeChatShellService(ShellBootstrapState shellState)
@@ -303,11 +372,16 @@ public sealed class MainPageViewModelTests
 
         public List<string> DeletedConversationIds { get; } = new();
 
+        public IReadOnlyList<ShellModelOption> AvailableModels { get; set; } = Array.Empty<ShellModelOption>();
+
         public Func<ShellSendRequest, CancellationToken, Task<ShellSendResponse>> OnSendAsync { get; set; } =
             (_, _) => throw new NotSupportedException();
 
         public Task<ShellBootstrapState> LoadShellAsync(int recentLimit = 12, CancellationToken cancellationToken = default)
             => Task.FromResult(ShellState);
+
+        public Task<IReadOnlyList<ShellModelOption>> GetAvailableModelsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(AvailableModels);
 
         public Task<ShellConversationSnapshot> CreateConversationAsync(string? title = null, CancellationToken cancellationToken = default)
             => throw new NotSupportedException();

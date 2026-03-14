@@ -9,6 +9,8 @@ namespace WorkIQC.App
 {
     public sealed partial class MainWindow : Window
     {
+        private static readonly Windows.Graphics.SizeInt32 DefaultWindowSize = new(1280, 800);
+
         public MainWindow()
         {
             InitializeComponent();
@@ -35,8 +37,11 @@ namespace WorkIQC.App
                 presenter.SetBorderAndTitleBar(true, true);
             }
 
-            // Set default window size
-            appWindow?.Resize(new Windows.Graphics.SizeInt32(1280, 800));
+            if (appWindow is not null)
+            {
+                appWindow.Resize(DefaultWindowSize);
+                CenterOnDisplay(appWindow, windowId);
+            }
         }
 
         public void SetContent(UIElement content)
@@ -49,6 +54,15 @@ namespace WorkIQC.App
             {
                 SetTitleBar(dragRegion);
             }
+        }
+
+        private static void CenterOnDisplay(AppWindow appWindow, WindowId windowId)
+        {
+            var displayArea = DisplayArea.GetFromWindowId(windowId, DisplayAreaFallback.Primary);
+            var workArea = displayArea.WorkArea;
+            var centeredX = workArea.X + Math.Max(0, (workArea.Width - DefaultWindowSize.Width) / 2);
+            var centeredY = workArea.Y + Math.Max(0, (workArea.Height - DefaultWindowSize.Height) / 2);
+            appWindow.Move(new Windows.Graphics.PointInt32(centeredX, centeredY));
         }
     }
 }

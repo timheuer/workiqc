@@ -67,6 +67,37 @@ public sealed class GitHubCopilotSdkClientTests
         StringAssert.Contains(exception.Message, "missing a required 'command'");
     }
 
+    [TestMethod]
+    public async Task BuildSessionConfig_WhenModelIsSpecified_BindsSessionModel()
+    {
+        using var workspace = new TempWorkspace();
+        var copilotDirectory = Path.Combine(workspace.RootPath, ".copilot");
+        Directory.CreateDirectory(copilotDirectory);
+        var mcpConfigPath = Path.Combine(copilotDirectory, "mcp-config.json");
+        await File.WriteAllTextAsync(
+            mcpConfigPath,
+            """
+            {
+              "mcpServers": {
+                "workiq": {
+                  "command": "cmd",
+                  "args": ["/d", "/s", "/c", "npx", "-y", "@microsoft/workiq", "mcp"]
+                }
+              }
+            }
+            """);
+
+        var sessionConfig = GitHubCopilotSdkClient.BuildSessionConfig(new SessionConfiguration
+        {
+            WorkspacePath = workspace.RootPath,
+            McpConfigPath = mcpConfigPath,
+            ModelId = "gpt-5",
+            AllowedTools = WorkIQRuntimeDefaults.SessionAllowedToolNames
+        });
+
+        Assert.AreEqual("gpt-5", sessionConfig.Model);
+    }
+
     private sealed class TempWorkspace : IDisposable
     {
         public TempWorkspace()

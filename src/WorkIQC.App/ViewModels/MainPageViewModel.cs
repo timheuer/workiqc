@@ -35,7 +35,11 @@ namespace WorkIQC.App.ViewModels
             Prerequisites: Array.Empty<SetupCheckItem>());
         private string _composerText = string.Empty;
         private string _connectionBadgeText = "Preview data";
+        private string? _defaultModelId;
+        private string? _selectedModelId;
+        private ShellModelOption? _selectedModelOption;
         private string _sidebarFooterText = "Local history is ready. Runtime updates appear here when live handoff is active.";
+        private bool _isSynchronizingSelectedModelOption;
 
         public MainPageViewModel(IChatShellService chatShellService)
         {
@@ -44,6 +48,7 @@ namespace WorkIQC.App.ViewModels
             ConversationGroups = new ObservableCollection<ConversationGroupViewModel>();
             SidebarItems = new ObservableCollection<ConversationListItemViewModel>();
             Messages = new ObservableCollection<ChatMessageViewModel>();
+            AvailableModels = new ObservableCollection<ShellModelOption>();
             SetupBlockers = new ObservableCollection<SetupCheckItem>();
             SetupPrerequisites = new ObservableCollection<SetupCheckItem>();
 
@@ -62,9 +67,39 @@ namespace WorkIQC.App.ViewModels
 
         public ObservableCollection<ChatMessageViewModel> Messages { get; }
 
+        public ObservableCollection<ShellModelOption> AvailableModels { get; }
+
         public ObservableCollection<SetupCheckItem> SetupBlockers { get; }
 
         public ObservableCollection<SetupCheckItem> SetupPrerequisites { get; }
+
+        public string? SelectedModelId
+        {
+            get => _selectedModelId;
+            set => SetSelectedModel(value, updateDefaultSelection: true, updateConversationSelection: true);
+        }
+
+        public ShellModelOption? SelectedModelOption
+        {
+            get => _selectedModelOption;
+            set
+            {
+                if (ReferenceEquals(_selectedModelOption, value))
+                {
+                    return;
+                }
+
+                _selectedModelOption = value;
+                RaisePropertyChanged(nameof(SelectedModelOption));
+
+                if (_isSynchronizingSelectedModelOption)
+                {
+                    return;
+                }
+
+                SetSelectedModel(value?.Id, updateDefaultSelection: true, updateConversationSelection: true);
+            }
+        }
 
         public string? SelectedConversationId => _selectedConversationId;
 
@@ -160,6 +195,10 @@ namespace WorkIQC.App.ViewModels
 
         public Visibility ConnectionBadgeVisibility => string.IsNullOrWhiteSpace(ConnectionBadgeText) ? Visibility.Collapsed : Visibility.Visible;
 
+        public Visibility ModelPickerVisibility => AvailableModels.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        public bool IsModelPickerEnabled => AvailableModels.Count > 0 && !IsSelectedConversationBusy;
+
         public Visibility SetupCardVisibility => _setupState.RequiresUserAction ? Visibility.Visible : Visibility.Collapsed;
 
         public Visibility SettingsSurfaceVisibility => IsSettingsViewActive ? Visibility.Visible : Visibility.Collapsed;
@@ -239,6 +278,7 @@ namespace WorkIQC.App.ViewModels
 
             var shellState = await _chatShellService.LoadShellAsync();
             ApplyBootstrapState(shellState);
+            await RefreshAvailableModelsAsync();
             _initialized = true;
         }
 
@@ -364,7 +404,7 @@ namespace WorkIQC.App.ViewModels
                 try
                 {
                     response = await _chatShellService.SendAsync(
-                        new ShellSendRequest(conversation.Id, conversation.Title, prompt, conversation.SessionId));
+                        new ShellSendRequest(conversation.Id, conversation.Title, prompt, conversation.SessionId, conversation.SelectedModelId));
                 }
                 catch
                 {
@@ -428,13 +468,22 @@ namespace WorkIQC.App.ViewModels
         }
 
         public async Task AcceptWorkIqTermsAsync()
-            => ApplySetupState(await _chatShellService.AcceptWorkIqTermsAsync());
+        {
+            ApplySetupState(await _chatShellService.AcceptWorkIqTermsAsync());
+            await RefreshAvailableModelsAsync();
+        }
 
         public async Task RecordAuthenticationHandoffAsync(string? loginCommand = null)
-            => ApplySetupState(await _chatShellService.RecordAuthenticationHandoffAsync(loginCommand));
+        {
+            ApplySetupState(await _chatShellService.RecordAuthenticationHandoffAsync(loginCommand));
+            await RefreshAvailableModelsAsync();
+        }
 
         public async Task RefreshSetupAsync()
-            => ApplySetupState(await _chatShellService.RefreshSetupAsync());
+        {
+            ApplySetupState(await _chatShellService.RefreshSetupAsync());
+            await RefreshAvailableModelsAsync();
+        }
 
         private async Task ConsumeActivityUpdatesAsync(ConversationSeed conversation, IAsyncEnumerable<string> activityStream, string baselineSidebarFooter)
         {
@@ -511,7 +560,7 @@ namespace WorkIQC.App.ViewModels
         private void UpsertConversation(ConversationSeed conversation)
             => _conversations[conversation.Id] = conversation;
 
-        private static ConversationSeed CreateSeed(ShellConversationSnapshot snapshot)
+        private ConversationSeed CreateSeed(ShellConversationSnapshot snapshot)
         {
             var messages = snapshot.Messages
                 .Select(message => new MessageSeed(message.Role, message.Author, message.Content, message.Timestamp))
@@ -525,6 +574,7 @@ namespace WorkIQC.App.ViewModels
                 UpdatedAt = snapshot.UpdatedAt,
                 IsPersisted = snapshot.IsPersisted,
                 IsDraft = snapshot.IsDraft,
+                SelectedModelId = _defaultModelId,
                 SessionId = snapshot.SessionId,
                 Messages = messages,
                 ViewMessages = messages
@@ -541,6 +591,7 @@ namespace WorkIQC.App.ViewModels
             }
 
             _selectedConversationId = id;
+            SetSelectedModel(conversation.SelectedModelId ?? _defaultModelId, updateDefaultSelection: false, updateConversationSelection: false);
             RefreshConversationGroups();
             RaiseBusyStateChanged();
 
@@ -608,6 +659,7 @@ namespace WorkIQC.App.ViewModels
             RaisePropertyChanged(nameof(ActivityBadgeVisibility));
             RaisePropertyChanged(nameof(ActivityBadgeText));
             RaisePropertyChanged(nameof(ComposerStatusText));
+            RaisePropertyChanged(nameof(IsModelPickerEnabled));
         }
 
         private bool TryGetSelectedConversation(out ConversationSeed conversation)
@@ -681,6 +733,83 @@ namespace WorkIQC.App.ViewModels
             }
         }
 
+        private async Task RefreshAvailableModelsAsync()
+        {
+            var models = await _chatShellService.GetAvailableModelsAsync();
+            ReplaceItems(AvailableModels, models);
+
+            var availableModelIds = new HashSet<string>(models.Select(model => model.Id), StringComparer.OrdinalIgnoreCase);
+            var desiredModelId = TryGetSelectedConversation(out var conversation)
+                ? conversation.SelectedModelId ?? _defaultModelId
+                : _defaultModelId;
+
+            if (desiredModelId is not null && !availableModelIds.Contains(desiredModelId))
+            {
+                desiredModelId = null;
+                if (conversation is not null)
+                {
+                    conversation.SelectedModelId = null;
+                }
+
+                _defaultModelId = null;
+            }
+
+            desiredModelId ??= models.FirstOrDefault()?.Id;
+            if (_defaultModelId is null)
+            {
+                _defaultModelId = desiredModelId;
+            }
+
+            if (conversation is not null && conversation.SelectedModelId is null)
+            {
+                conversation.SelectedModelId = desiredModelId;
+            }
+
+            SetSelectedModel(desiredModelId, updateDefaultSelection: false, updateConversationSelection: false);
+            RaisePropertyChanged(nameof(ModelPickerVisibility));
+            RaisePropertyChanged(nameof(IsModelPickerEnabled));
+        }
+
+        private void SetSelectedModel(string? modelId, bool updateDefaultSelection, bool updateConversationSelection)
+        {
+            var normalizedModelId = NormalizeModelId(modelId);
+            if (updateDefaultSelection)
+            {
+                _defaultModelId = normalizedModelId;
+            }
+
+            if (updateConversationSelection && TryGetSelectedConversation(out var conversation))
+            {
+                conversation.SelectedModelId = normalizedModelId;
+            }
+
+            SetProperty(ref _selectedModelId, normalizedModelId);
+            SyncSelectedModelOption(normalizedModelId);
+        }
+
+        private void SyncSelectedModelOption(string? modelId)
+        {
+            var matchingOption = string.IsNullOrWhiteSpace(modelId)
+                ? null
+                : AvailableModels.FirstOrDefault(option => string.Equals(option.Id, modelId, StringComparison.OrdinalIgnoreCase));
+
+            if (ReferenceEquals(_selectedModelOption, matchingOption))
+            {
+                return;
+            }
+
+            _isSynchronizingSelectedModelOption = true;
+            try
+            {
+                _selectedModelOption = matchingOption;
+                RaisePropertyChanged(nameof(SelectedModelOption));
+            }
+            finally
+            {
+                _isSynchronizingSelectedModelOption = false;
+            }
+        }
+
         private string ResolveStreamingStatusText()
             => ConnectionBadgeText switch
             {
@@ -733,6 +862,9 @@ namespace WorkIQC.App.ViewModels
             return timestamp.ToString("m");
         }
 
+        private static string? NormalizeModelId(string? modelId)
+            => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
+
         private sealed class ConversationSeed
         {
             public string Id { get; set; } = string.Empty;
@@ -746,6 +878,8 @@ namespace WorkIQC.App.ViewModels
             public bool IsPersisted { get; set; }
 
             public bool IsDraft { get; set; }
+
+            public string? SelectedModelId { get; set; }
 
             public string? SessionId { get; set; }
 

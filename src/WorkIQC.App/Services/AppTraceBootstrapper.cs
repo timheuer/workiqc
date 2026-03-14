@@ -7,6 +7,8 @@ namespace WorkIQC.App.Services;
 internal static class AppTraceBootstrapper
 {
     private const string ListenerName = "WorkIQC.FileTrace";
+    private const long MaxLogFileBytes = 5 * 1024 * 1024;
+    private const int MaxArchiveFiles = 5;
     private static readonly object Gate = new();
     private static bool _initialized;
 
@@ -25,12 +27,7 @@ internal static class AppTraceBootstrapper
             if (existing is null)
             {
                 Directory.CreateDirectory(Path.GetDirectoryName(LogPath)!);
-                var stream = new FileStream(LogPath, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
-                var writer = new StreamWriter(stream)
-                {
-                    AutoFlush = true
-                };
-                Trace.Listeners.Add(new TextWriterTraceListener(writer, ListenerName));
+                Trace.Listeners.Add(new RollingFileTraceListener(LogPath, MaxLogFileBytes, MaxArchiveFiles, ListenerName));
             }
 
             Trace.AutoFlush = true;
@@ -45,7 +42,7 @@ internal static class AppTraceBootstrapper
     {
         var version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "unknown";
         Trace.WriteLine(
-            $"[{DateTimeOffset.Now:O}] [WorkIQC.App] [diagnostics.init] Logging to '{LogPath}'. Version={version}; PID={Environment.ProcessId}; Database='{StorageHelper.GetDatabasePath()}'; Workspace='{StorageHelper.GetWorkspacePath()}'; MCP='{StorageHelper.GetCopilotConfigPath()}'.");
+            $"[{DateTimeOffset.Now:O}] [WorkIQC.App] [diagnostics.init] Logging to '{LogPath}'. Rotation={MaxLogFileBytes / (1024 * 1024)}MB; Archives={MaxArchiveFiles}. Version={version}; PID={Environment.ProcessId}; Database='{StorageHelper.GetDatabasePath()}'; Workspace='{StorageHelper.GetWorkspacePath()}'; MCP='{StorageHelper.GetCopilotConfigPath()}'.");
     }
 
     private static void OnUnhandledException(object sender, System.UnhandledExceptionEventArgs args)

@@ -136,13 +136,21 @@ public sealed class CopilotRuntimeBridgeTests
 
     private sealed class FakeCopilotSdkClient(FakeCopilotSdkSession session) : ICopilotSdkClient
     {
+        public string? LastResumedModelId { get; private set; }
+
         public Task StartAsync(CancellationToken cancellationToken = default) => Task.CompletedTask;
 
         public Task<ICopilotSdkSession> CreateSessionAsync(SessionConfiguration config, CancellationToken cancellationToken = default)
             => Task.FromResult<ICopilotSdkSession>(session);
 
-        public Task<ICopilotSdkSession> ResumeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
-            => Task.FromResult<ICopilotSdkSession>(session);
+        public Task<ICopilotSdkSession> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
+        {
+            LastResumedModelId = modelId;
+            return Task.FromResult<ICopilotSdkSession>(session);
+        }
+
+        public Task<IReadOnlyList<CopilotModelDescriptor>> ListAvailableModelsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult<IReadOnlyList<CopilotModelDescriptor>>(Array.Empty<CopilotModelDescriptor>());
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }

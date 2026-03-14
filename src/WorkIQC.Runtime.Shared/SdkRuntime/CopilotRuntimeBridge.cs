@@ -34,8 +34,8 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var handle = RegisterSession(host, sdkSession);
-                WriteDiagnostic("session.create", $"Created runtime session '{handle.SessionId}' for workspace '{config.WorkspacePath}'.");
+                var handle = RegisterSession(host, sdkSession, NormalizeModelId(config.ModelId));
+                WriteDiagnostic("session.create", $"Created runtime session '{handle.SessionId}' for workspace '{config.WorkspacePath}' using model '{handle.State.ModelId ?? "<default>"}'.");
                 return handle.SessionId;
             }
             finally
@@ -56,13 +56,45 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         }
     }
 
-    public async Task<bool> ResumeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    public async Task<bool> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
     {
         ValidateSessionId(sessionId);
+        var normalizedModelId = NormalizeModelId(modelId);
 
-        if (_sessions.ContainsKey(sessionId))
+        if (_sessions.TryGetValue(sessionId, out var activeHandle))
         {
-            WriteDiagnostic("session.resume", $"Session '{sessionId}' is already active in-process.");
+            if (string.Equals(activeHandle.State.ModelId, normalizedModelId, StringComparison.OrdinalIgnoreCase))
+            {
+                WriteDiagnostic("session.resume", $"Session '{sessionId}' is already active in-process with model '{normalizedModelId ?? "<default>"}'.");
+                return true;
+            }
+
+            var resumedActiveSession = await activeHandle.WorkspaceHost.Client.ResumeSessionAsync(sessionId, normalizedModelId, cancellationToken).ConfigureAwait(false);
+            RuntimeSessionHandle? priorHandle = null;
+
+            await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                if (_sessions.TryGetValue(sessionId, out priorHandle))
+                {
+                    priorHandle.Dispose();
+                    _sessions.Remove(sessionId);
+                    priorHandle.WorkspaceHost.SessionIds.TryRemove(sessionId, out _);
+                }
+
+                RegisterSession(activeHandle.WorkspaceHost, resumedActiveSession, normalizedModelId);
+            }
+            finally
+            {
+                _gate.Release();
+            }
+
+            if (priorHandle is not null)
+            {
+                await priorHandle.Session.DisposeAsync().ConfigureAwait(false);
+            }
+
+            WriteDiagnostic("session.resume", $"Updated active runtime session '{sessionId}' to model '{normalizedModelId ?? "<default>"}'.");
             return true;
         }
 
@@ -73,9 +105,9 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
             {
                 try
                 {
-                    var sdkSession = await host.Client.ResumeSessionAsync(sessionId, cancellationToken).ConfigureAwait(false);
-                    RegisterSession(host, sdkSession);
-                    WriteDiagnostic("session.resume", $"Resumed runtime session '{sessionId}' from workspace '{host.WorkspacePath}'.");
+                    var sdkSession = await host.Client.ResumeSessionAsync(sessionId, normalizedModelId, cancellationToken).ConfigureAwait(false);
+                    RegisterSession(host, sdkSession, normalizedModelId);
+                    WriteDiagnostic("session.resume", $"Resumed runtime session '{sessionId}' from workspace '{host.WorkspacePath}' with model '{normalizedModelId ?? "<default>"}'.");
                     return true;
                 }
                 catch (RuntimeException exception) when (LooksMissing(exception))
@@ -90,6 +122,17 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         {
             _gate.Release();
         }
+    }
+
+    public async Task<IReadOnlyList<CopilotModelDescriptor>> ListAvailableModelsAsync(string workspacePath, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(workspacePath))
+        {
+            throw new ArgumentException("Workspace path is required.", nameof(workspacePath));
+        }
+
+        var host = await GetOrCreateWorkspaceHostAsync(workspacePath, cancellationToken).ConfigureAwait(false);
+        return await host.Client.ListAvailableModelsAsync(cancellationToken).ConfigureAwait(false);
     }
 
     public Task<SessionState> GetSessionStateAsync(string sessionId, CancellationToken cancellationToken = default)
@@ -294,7 +337,7 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         }
     }
 
-    private RuntimeSessionHandle RegisterSession(WorkspaceHost host, ICopilotSdkSession sdkSession)
+    private RuntimeSessionHandle RegisterSession(WorkspaceHost host, ICopilotSdkSession sdkSession, string? modelId)
     {
         if (_sessions.TryGetValue(sdkSession.SessionId, out var existing))
         {
@@ -309,6 +352,7 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         {
             SessionId = sdkSession.SessionId,
             Status = SessionStatus.Ready,
+            ModelId = modelId,
             CreatedAt = DateTimeOffset.UtcNow,
             LastActivityAt = DateTimeOffset.UtcNow
         };
@@ -425,6 +469,9 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         => string.Equals(exception.ErrorCode, "runtime.session.not-found", StringComparison.Ordinal)
             || exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
             || exception.Message.Contains("No session", StringComparison.OrdinalIgnoreCase);
+
+    private static string? NormalizeModelId(string? modelId)
+        => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
 
     private sealed class WorkspaceHost
     {

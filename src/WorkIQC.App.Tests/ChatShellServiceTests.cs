@@ -43,6 +43,25 @@ public sealed class ChatShellServiceTests
     }
 
     [TestMethod]
+    public async Task GetAvailableModelsAsync_WhenRuntimeIsReady_ReturnsAccessibleModels()
+    {
+        await using var fixture = await ChatShellServiceFixture.CreateAsync();
+        fixture.SessionCoordinator.OnListAvailableModelsAsync = (_, _) => Task.FromResult<IReadOnlyList<CopilotModelDescriptor>>(
+        [
+            new("gpt-5", "GPT-5"),
+            new("claude-sonnet-4.5", "Claude Sonnet 4.5")
+        ]);
+
+        var models = await fixture.Service.GetAvailableModelsAsync();
+
+        Assert.HasCount(2, models);
+        Assert.AreEqual("gpt-5", models[0].Id);
+        Assert.AreEqual("GPT-5", models[0].DisplayName);
+        Assert.AreEqual("claude-sonnet-4.5", models[1].Id);
+        Assert.AreEqual("Claude Sonnet 4.5 (claude-sonnet-4.5)", models[1].DisplayName);
+    }
+
+    [TestMethod]
     public async Task LoadShellAsync_WhenBootstrapThrows_DoesNotAbortLaunch()
     {
         await using var fixture = await ChatShellServiceFixture.CreateAsync();
@@ -127,7 +146,7 @@ public sealed class ChatShellServiceTests
             "missing-conversation",
             "Markdown fallback",
             "Show **markdown** and `code` literally",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(response.ConversationId);
 
@@ -148,6 +167,95 @@ public sealed class ChatShellServiceTests
     }
 
     [TestMethod]
+    public async Task SendAsync_WhenModelIsSelected_PassesModelToSessionCreation()
+    {
+        await using var fixture = await ChatShellServiceFixture.CreateAsync();
+        SessionConfiguration? capturedConfig = null;
+        fixture.SessionCoordinator.OnCreateSessionAsync = (config, _) =>
+        {
+            capturedConfig = config;
+            return Task.FromResult("session-model");
+        };
+
+        var response = await fixture.Service.SendAsync(new ShellSendRequest(
+            "conversation-model",
+            "Model selection",
+            "Use the selected model",
+            SessionId: null,
+            ModelId: "gpt-5"));
+
+        _ = await ReadAllAsync(response.ResponseStream);
+
+        Assert.IsNotNull(capturedConfig);
+        Assert.AreEqual("gpt-5", capturedConfig.ModelId);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_WhenSelectedModelMatchesActiveSession_ResumesExistingSession()
+    {
+        await using var fixture = await ChatShellServiceFixture.CreateAsync();
+        var conversation = await fixture.CreateConversationAsync("Resume with model");
+        await fixture.SetSessionIdAsync(conversation.Id, "session-restore");
+        string? capturedModelId = null;
+        fixture.SessionCoordinator.OnGetSessionStateAsync = (sessionId, _) => Task.FromResult(new SessionState
+        {
+            SessionId = sessionId,
+            Status = SessionStatus.Ready,
+            ModelId = "claude-sonnet-4.5",
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        fixture.SessionCoordinator.OnResumeSessionAsync = (sessionId, modelId, _) =>
+        {
+            capturedModelId = modelId;
+            return Task.FromResult(sessionId == "session-restore");
+        };
+
+        var response = await fixture.Service.SendAsync(new ShellSendRequest(
+            conversation.Id,
+            conversation.Title,
+            "Resume with selected model",
+            SessionId: "session-restore",
+            ModelId: "claude-sonnet-4.5"));
+
+        _ = await ReadAllAsync(response.ResponseStream);
+
+        Assert.AreEqual("claude-sonnet-4.5", capturedModelId);
+        Assert.AreEqual(1, fixture.SessionCoordinator.ResumeSessionCallCount);
+        Assert.AreEqual(0, fixture.SessionCoordinator.CreateSessionCallCount);
+    }
+
+    [TestMethod]
+    public async Task SendAsync_WhenSelectedModelChanges_CreatesFreshSessionInsteadOfResuming()
+    {
+        await using var fixture = await ChatShellServiceFixture.CreateAsync();
+        var conversation = await fixture.CreateConversationAsync("Switch model");
+        await fixture.SetSessionIdAsync(conversation.Id, "session-old");
+        fixture.SessionCoordinator.OnGetSessionStateAsync = (sessionId, _) => Task.FromResult(new SessionState
+        {
+            SessionId = sessionId,
+            Status = SessionStatus.Ready,
+            ModelId = "gpt-5.4",
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+        fixture.SessionCoordinator.OnCreateSessionAsync = (config, _) => Task.FromResult("session-new");
+
+        var response = await fixture.Service.SendAsync(new ShellSendRequest(
+            conversation.Id,
+            conversation.Title,
+            "Switch to Claude",
+            SessionId: "session-old",
+            ModelId: "claude-haiku-4.5"));
+
+        _ = await ReadAllAsync(response.ResponseStream);
+
+        Assert.AreEqual(0, fixture.SessionCoordinator.ResumeSessionCallCount);
+        Assert.AreEqual(1, fixture.SessionCoordinator.CreateSessionCallCount);
+        Assert.AreEqual(1, fixture.SessionCoordinator.DisposeSessionCallCount);
+        CollectionAssert.AreEqual(new[] { "session-old" }, fixture.SessionCoordinator.DisposedSessionIds);
+        Assert.AreEqual("session-new", await fixture.GetSessionIdAsync(conversation.Id));
+    }
+
+    [TestMethod]
     public async Task SendAsync_WhenWorkplacePromptRuntimeIsUnavailable_ReturnsBlockingResponseInsteadOfPlaceholder()
     {
         await using var fixture = await ChatShellServiceFixture.CreateAsync();
@@ -158,7 +266,7 @@ public sealed class ChatShellServiceTests
             "workplace-blocked",
             "Direct reports",
             "Who are my direct reports?",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(response.ConversationId);
 
@@ -182,9 +290,10 @@ public sealed class ChatShellServiceTests
         var conversation = await fixture.CreateConversationAsync("Runtime markdown");
         await fixture.SetSessionIdAsync(conversation.Id, "stored-session");
         fixture.SessionCoordinator.OnCreateSessionAsync = (_, _) => throw new AssertFailedException("Existing session should be reused.");
-        fixture.SessionCoordinator.OnResumeSessionAsync = (sessionId, _) =>
+        fixture.SessionCoordinator.OnResumeSessionAsync = (sessionId, modelId, _) =>
         {
             Assert.AreEqual("stored-session", sessionId);
+            Assert.IsNull(modelId);
             return Task.FromResult(true);
         };
 
@@ -207,7 +316,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Runtime markdown",
             "Ship the transcript",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(conversation.Id);
 
@@ -234,7 +343,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Org lookup",
             "Who are my direct reports?",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
@@ -264,7 +373,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Live handoff",
             "Send it live",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("resolved-session", response.SessionId);
@@ -378,7 +487,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Send failure",
             "Trigger a send failure",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("Runtime blocked", response.ConnectionBadgeText);
@@ -405,7 +514,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Workplace send failure",
             "Who are my direct reports?",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("WorkICQ blocked", response.ConnectionBadgeText);
@@ -429,7 +538,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Empty runtime",
             "Explain theme switching",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(conversation.Id);
 
@@ -454,7 +563,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Empty workplace runtime",
             "Who are my direct reports?",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
@@ -480,7 +589,7 @@ public sealed class ChatShellServiceTests
             conversation.Id,
             "Unsupported runtime",
             "Stay safe",
-            SessionId: null));
+            SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("Runtime blocked", response.ConnectionBadgeText);
@@ -797,11 +906,25 @@ public sealed class ChatShellServiceTests
     {
         public Func<SessionConfiguration, CancellationToken, Task<string>> OnCreateSessionAsync { get; set; } = (_, _) => Task.FromResult("created-session");
 
-        public Func<string, CancellationToken, Task<bool>> OnResumeSessionAsync { get; set; } = (_, _) => Task.FromResult(true);
+        public Func<string, string?, CancellationToken, Task<bool>> OnResumeSessionAsync { get; set; } = (_, _, _) => Task.FromResult(true);
+
+        public Func<string, CancellationToken, Task<SessionState>> OnGetSessionStateAsync { get; set; } = (sessionId, _) => Task.FromResult(new SessionState
+        {
+            SessionId = sessionId,
+            Status = SessionStatus.Ready,
+            CreatedAt = DateTimeOffset.UtcNow
+        });
+
+        public Func<string, CancellationToken, Task<IReadOnlyList<CopilotModelDescriptor>>> OnListAvailableModelsAsync { get; set; } =
+            (_, _) => Task.FromResult<IReadOnlyList<CopilotModelDescriptor>>(Array.Empty<CopilotModelDescriptor>());
 
         public int CreateSessionCallCount { get; private set; }
 
         public int ResumeSessionCallCount { get; private set; }
+
+        public int DisposeSessionCallCount { get; private set; }
+
+        public List<string> DisposedSessionIds { get; } = [];
 
         public Task<string> CreateSessionAsync(SessionConfiguration config, CancellationToken cancellationToken = default)
         {
@@ -809,22 +932,24 @@ public sealed class ChatShellServiceTests
             return OnCreateSessionAsync(config, cancellationToken);
         }
 
-        public Task<bool> ResumeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+        public Task<bool> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
         {
             ResumeSessionCallCount++;
-            return OnResumeSessionAsync(sessionId, cancellationToken);
+            return OnResumeSessionAsync(sessionId, modelId, cancellationToken);
         }
 
+        public Task<IReadOnlyList<CopilotModelDescriptor>> ListAvailableModelsAsync(string workspacePath, CancellationToken cancellationToken = default)
+            => OnListAvailableModelsAsync(workspacePath, cancellationToken);
+
         public Task<SessionState> GetSessionStateAsync(string sessionId, CancellationToken cancellationToken = default)
-            => Task.FromResult(new SessionState
-            {
-                SessionId = sessionId,
-                Status = SessionStatus.Ready,
-                CreatedAt = DateTimeOffset.UtcNow
-            });
+            => OnGetSessionStateAsync(sessionId, cancellationToken);
 
         public Task DisposeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
-            => Task.CompletedTask;
+        {
+            DisposeSessionCallCount++;
+            DisposedSessionIds.Add(sessionId);
+            return Task.CompletedTask;
+        }
     }
 
     private sealed class TestMessageOrchestrator : IMessageOrchestrator
@@ -858,3 +983,4 @@ public sealed class ChatShellServiceTests
         }
     }
 }
+

@@ -26,12 +26,23 @@ public sealed class SessionCoordinator : ISessionCoordinator
         return _runtimeBridge.CreateSessionAsync(config, cancellationToken);
     }
 
-    public Task<bool> ResumeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    public Task<bool> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         ValidateSessionId(sessionId, nameof(sessionId));
 
-        return _runtimeBridge.ResumeSessionAsync(sessionId, cancellationToken);
+        return _runtimeBridge.ResumeSessionAsync(sessionId, modelId, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<CopilotModelDescriptor>> ListAvailableModelsAsync(string workspacePath, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (string.IsNullOrWhiteSpace(workspacePath))
+        {
+            throw new ArgumentException("Workspace path is required.", nameof(workspacePath));
+        }
+
+        return _runtimeBridge.ListAvailableModelsAsync(workspacePath, cancellationToken);
     }
 
     public Task<SessionState> GetSessionStateAsync(string sessionId, CancellationToken cancellationToken = default)

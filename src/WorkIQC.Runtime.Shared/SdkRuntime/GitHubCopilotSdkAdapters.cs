@@ -65,16 +65,19 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
         await StartAsync(cancellationToken).ConfigureAwait(false);
         WriteDiagnostic(
             "session.create",
-            $"Creating Copilot SDK session with allowed tools [{string.Join(", ", config.AllowedTools)}], workspace '{config.WorkspacePath}', and MCP config '{config.McpConfigPath}'.");
+            $"Creating Copilot SDK session with model '{NormalizeModelId(config.ModelId) ?? "<default>"}', allowed tools [{string.Join(", ", config.AllowedTools)}], workspace '{config.WorkspacePath}', and MCP config '{config.McpConfigPath}'.");
 
         try
         {
             var sessionConfig = BuildSessionConfig(config);
-            foreach (var (serverName, serverDef) in sessionConfig.McpServers)
+            if (sessionConfig.McpServers is { Count: > 0 } configuredServers)
             {
-                if (serverDef is McpLocalServerConfig local)
+                foreach (var (serverName, serverDef) in configuredServers)
                 {
-                    WriteDiagnostic("session.mcp", $"MCP server '{serverName}': command='{local.Command}', args=[{string.Join(", ", local.Args)}], tools=[{string.Join(", ", local.Tools)}], timeout={local.Timeout}ms.");
+                    if (serverDef is McpLocalServerConfig local)
+                    {
+                        WriteDiagnostic("session.mcp", $"MCP server '{serverName}': command='{local.Command}', args=[{string.Join(", ", local.Args)}], tools=[{string.Join(", ", local.Tools)}], timeout={local.Timeout}ms.");
+                    }
                 }
             }
 
@@ -91,10 +94,11 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
         }
     }
 
-    public async Task<ICopilotSdkSession> ResumeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    public async Task<ICopilotSdkSession> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
     {
         await StartAsync(cancellationToken).ConfigureAwait(false);
-        WriteDiagnostic("session.resume", $"Attempting to resume Copilot SDK session '{sessionId}'.");
+        var normalizedModelId = NormalizeModelId(modelId);
+        WriteDiagnostic("session.resume", $"Attempting to resume Copilot SDK session '{sessionId}' with model '{normalizedModelId ?? "<default>"}'.");
 
         try
         {
@@ -102,7 +106,8 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
                 sessionId,
                 new ResumeSessionConfig
                 {
-                    OnPermissionRequest = PermissionHandler.ApproveAll
+                    OnPermissionRequest = PermissionHandler.ApproveAll,
+                    Model = normalizedModelId
                 },
                 cancellationToken).ConfigureAwait(false);
             return new GitHubCopilotSdkSession(session);
@@ -113,6 +118,51 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
                 $"GitHub Copilot SDK could not resume session '{sessionId}'.",
                 exception,
                 errorCode: "runtime.session.resume.failed");
+        }
+    }
+
+    public async Task<IReadOnlyList<CopilotModelDescriptor>> ListAvailableModelsAsync(CancellationToken cancellationToken = default)
+    {
+        await StartAsync(cancellationToken).ConfigureAwait(false);
+        WriteDiagnostic("models.list", "Listing accessible Copilot SDK models.");
+
+        try
+        {
+            var availableModels = await _client.ListModelsAsync(cancellationToken).ConfigureAwait(false);
+            if (availableModels.Count == 0)
+            {
+                return Array.Empty<CopilotModelDescriptor>();
+            }
+
+            var models = new List<CopilotModelDescriptor>(availableModels.Count);
+            var seenModelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var model in availableModels)
+            {
+                var modelId = NormalizeModelId(model.Id);
+                if (modelId is null || !seenModelIds.Add(modelId))
+                {
+                    continue;
+                }
+
+                var policyState = model.Policy?.State;
+                if (!string.IsNullOrWhiteSpace(policyState)
+                    && !string.Equals(policyState, "enabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                var displayName = string.IsNullOrWhiteSpace(model.Name) ? modelId : model.Name;
+                models.Add(new CopilotModelDescriptor(modelId, displayName));
+            }
+
+            return models;
+        }
+        catch (Exception exception)
+        {
+            throw new RuntimeException(
+                "GitHub Copilot SDK could not list the models available to the current user.",
+                exception,
+                errorCode: "runtime.models.list.failed");
         }
     }
 
@@ -130,6 +180,7 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
         return new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
+            Model = NormalizeModelId(config.ModelId),
             Streaming = config.EnableStreaming,
             WorkingDirectory = config.WorkspacePath,
             McpServers = BuildMcpServers(config),
@@ -327,6 +378,9 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
             && property.TryGetInt32(out var timeout)
             ? timeout
             : null;
+
+    private static string? NormalizeModelId(string? modelId)
+        => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
 }
 
 internal sealed class GitHubCopilotSdkSession : ICopilotSdkSession

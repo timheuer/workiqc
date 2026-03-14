@@ -8,6 +8,10 @@ public sealed record ShellBootstrapState(
     string SidebarFooterText,
     ShellSetupState SetupState);
 
+public sealed record ShellModelOption(
+    string Id,
+    string DisplayName);
+
 public sealed record ShellSetupState(
     bool RequiresUserAction,
     bool CanAttemptRuntime,
@@ -46,7 +50,8 @@ public sealed record ShellSendRequest(
     string ConversationId,
     string ConversationTitle,
     string Prompt,
-    string? SessionId);
+    string? SessionId,
+    string? ModelId);
 
 public sealed record ShellSendResponse(
     string ConversationId,

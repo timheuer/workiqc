@@ -109,6 +109,32 @@ public sealed class ChatShellService : IChatShellService
             Messages: Array.Empty<ShellMessageSnapshot>());
     }
 
+    public async Task<IReadOnlyList<ShellModelOption>> GetAvailableModelsAsync(CancellationToken cancellationToken = default)
+    {
+        var bootstrapSummary = await TryGetBootstrapSummaryAsync(cancellationToken);
+        if (!bootstrapSummary.CanAttemptRuntime)
+        {
+            return Array.Empty<ShellModelOption>();
+        }
+
+        try
+        {
+            var models = await _sessionCoordinator.ListAvailableModelsAsync(bootstrapSummary.Workspace.WorkspacePath, cancellationToken);
+            return models
+                .Select(model => new ShellModelOption(
+                    model.Id,
+                    string.Equals(model.DisplayName, model.Id, StringComparison.OrdinalIgnoreCase)
+                        ? model.DisplayName
+                        : $"{model.DisplayName} ({model.Id})"))
+                .ToArray();
+        }
+        catch (Exception exception)
+        {
+            WriteDiagnostic("models.load", $"Accessible model discovery failed: {exception.Message}");
+            return Array.Empty<ShellModelOption>();
+        }
+    }
+
     public async Task DeleteConversationAsync(string conversationId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(conversationId))
@@ -125,10 +151,11 @@ public sealed class ChatShellService : IChatShellService
 
     public async Task<ShellSendResponse> SendAsync(ShellSendRequest request, CancellationToken cancellationToken = default)
     {
+        var normalizedModelId = NormalizeModelId(request.ModelId);
         var requiresLiveWorkIq = RequiresLiveWorkIqPrompt(request.Prompt);
         WriteDiagnostic(
             "send.start",
-            $"Conversation '{request.ConversationId}' sending {(requiresLiveWorkIq ? "workplace" : "general")} prompt with stored session '{request.SessionId ?? "<none>"}'. Prompt={SummarizePrompt(request.Prompt)}");
+            $"Conversation '{request.ConversationId}' sending {(requiresLiveWorkIq ? "workplace" : "general")} prompt with stored session '{request.SessionId ?? "<none>"}', model '{normalizedModelId ?? "<default>"}'. Prompt={SummarizePrompt(request.Prompt)}");
         using var scope = _scopeFactory.CreateScope();
         var conversationService = scope.ServiceProvider.GetRequiredService<IConversationService>();
 
@@ -143,7 +170,7 @@ public sealed class ChatShellService : IChatShellService
 
         await conversationService.AddMessageAsync(conversation.Id, "user", request.Prompt);
 
-        var runtimePlan = await CreateRuntimePlanAsync(conversationService, conversation.Id, request.Prompt, request.SessionId, cancellationToken);
+        var runtimePlan = await CreateRuntimePlanAsync(conversationService, conversation.Id, request.Prompt, request.SessionId, normalizedModelId, cancellationToken);
         WriteDiagnostic(
             "send.plan",
             $"Conversation '{conversation.Id}' resolved to badge '{runtimePlan.ConnectionBadgeText}' with session '{runtimePlan.SessionId ?? "<none>"}'.");
@@ -179,6 +206,7 @@ public sealed class ChatShellService : IChatShellService
         string conversationId,
         string prompt,
         string? sessionId,
+        string? normalizedModelId,
         CancellationToken cancellationToken)
     {
         BootstrapSummary? bootstrapSummary = null;
@@ -214,6 +242,7 @@ public sealed class ChatShellService : IChatShellService
             {
                 WorkspacePath = bootstrapSummary.Workspace.WorkspacePath,
                 McpConfigPath = bootstrapSummary.Workspace.McpConfigPath,
+                ModelId = normalizedModelId,
                 AllowedTools = WorkIQRuntimeDefaults.SessionAllowedToolNames,
                 SystemGuidance = new Dictionary<string, string>
                 {
@@ -230,12 +259,21 @@ public sealed class ChatShellService : IChatShellService
 
             if (!string.IsNullOrWhiteSpace(sessionId))
             {
-                WriteDiagnostic("runtime.resume", $"Attempting to resume persisted session '{sessionId}'.");
-                var resumed = await _sessionCoordinator.ResumeSessionAsync(sessionId, cancellationToken);
-                if (!resumed)
+                if (await ShouldCreateFreshSessionForModelAsync(sessionId, normalizedModelId, cancellationToken))
                 {
-                    WriteDiagnostic("runtime.resume", $"Stored session '{sessionId}' could not be resumed. Creating a fresh session.");
+                    WriteDiagnostic("runtime.model", $"Starting a fresh runtime session because stored session '{sessionId}' is not safe to reuse for model '{normalizedModelId}'.");
+                    await TryDisposeSessionAsync(sessionId, cancellationToken);
                     sessionId = null;
+                }
+                else
+                {
+                    WriteDiagnostic("runtime.resume", $"Attempting to resume persisted session '{sessionId}' with model '{normalizedModelId ?? "<default>"}'.");
+                    var resumed = await _sessionCoordinator.ResumeSessionAsync(sessionId, normalizedModelId, cancellationToken);
+                    if (!resumed)
+                    {
+                        WriteDiagnostic("runtime.resume", $"Stored session '{sessionId}' could not be resumed. Creating a fresh session.");
+                        sessionId = null;
+                    }
                 }
             }
 
@@ -246,7 +284,7 @@ public sealed class ChatShellService : IChatShellService
             WriteDiagnostic("runtime.persist", $"Stored session resume metadata for conversation '{conversationId}' as '{sessionId}'.");
             WriteDiagnostic(
                 "runtime.dispatch",
-                $"Dispatching prompt to Copilot SDK session '{sessionId}' with allowed tools [{string.Join(", ", sessionConfiguration.AllowedTools)}] and MCP config '{sessionConfiguration.McpConfigPath}'.");
+                $"Dispatching prompt to Copilot SDK session '{sessionId}' with model '{normalizedModelId ?? "<default>"}', allowed tools [{string.Join(", ", sessionConfiguration.AllowedTools)}], and MCP config '{sessionConfiguration.McpConfigPath}'.");
 
             var sendResponse = await _messageOrchestrator.SendMessageAsync(
                 new SendMessageRequest
@@ -345,6 +383,34 @@ public sealed class ChatShellService : IChatShellService
                 blockingReason),
             StreamBlockingResponseAsync(conversationId, prompt, blockingReason, requiresLiveWorkIq),
             EmptyActivityStream());
+    }
+
+    private async Task<bool> ShouldCreateFreshSessionForModelAsync(string sessionId, string? normalizedModelId, CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(sessionId) || string.IsNullOrWhiteSpace(normalizedModelId))
+        {
+            return false;
+        }
+
+        var state = await _sessionCoordinator.GetSessionStateAsync(sessionId, cancellationToken);
+        if (string.Equals(state.ErrorCode, "runtime.session.not-found", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return !string.Equals(state.ModelId, normalizedModelId, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task TryDisposeSessionAsync(string sessionId, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _sessionCoordinator.DisposeSessionAsync(sessionId, cancellationToken);
+        }
+        catch (RuntimeException exception)
+        {
+            WriteDiagnostic("runtime.dispose", $"Session '{sessionId}' cleanup failed during model switch: {exception.Message}");
+        }
     }
 
     private async Task<BootstrapSummary> GetBootstrapSummaryAsync(CancellationToken cancellationToken)
@@ -720,6 +786,9 @@ public sealed class ChatShellService : IChatShellService
         var normalized = prompt.ReplaceLineEndings(" ").Trim();
         return normalized.Length <= 120 ? $"\"{normalized}\"" : $"\"{normalized[..120].TrimEnd()}…\"";
     }
+
+    private static string? NormalizeModelId(string? modelId)
+        => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
 
     private static string ResolveConnectionBadge(string dataConnectionBadge, BootstrapSummary bootstrapSummary)
         => bootstrapSummary.ConnectionBadgeText == BootstrapReadyConnectionBadge

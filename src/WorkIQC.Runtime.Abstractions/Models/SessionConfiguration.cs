@@ -9,6 +9,7 @@ public sealed record SessionConfiguration
 {
     public required string WorkspacePath { get; init; }
     public required string McpConfigPath { get; init; }
+    public string? ModelId { get; init; }
     public string? WorkIQVersion { get; init; }
     public IDictionary<string, string> SystemGuidance { get; init; } = new Dictionary<string, string>();
     public bool EnableStreaming { get; init; } = true;

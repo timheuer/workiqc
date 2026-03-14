@@ -757,22 +757,36 @@
                             </StackPanel>
 
                             <StackPanel Grid.Column="1"
-                                        Orientation="Horizontal"
-                                        Spacing="10"
-                                        VerticalAlignment="Center">
-                                <TextBlock Text="{Binding ConnectionBadgeText}"
-                                           Foreground="{ThemeResource TextSecondaryBrush}"
-                                           FontSize="12"
-                                           Visibility="{Binding ConnectionBadgeVisibility}" />
-                                <ProgressRing IsActive="{Binding IsBusyIndicatorActive}"
-                                              Width="16"
-                                              Height="16"
-                                              Visibility="{Binding ActivityBadgeVisibility}"
-                                              Foreground="{ThemeResource AccentBrush}" />
-                                <TextBlock Text="{Binding ActivityBadgeText}"
-                                           Foreground="{ThemeResource AccentBrush}"
-                                           FontSize="12"
-                                           Visibility="{Binding ActivityBadgeVisibility}" />
+                                        Spacing="8"
+                                        HorizontalAlignment="Right"
+                                        VerticalAlignment="Top">
+                                <StackPanel Orientation="Horizontal"
+                                            Spacing="10"
+                                            HorizontalAlignment="Right">
+                                    <TextBlock Text="{Binding ConnectionBadgeText}"
+                                               Foreground="{ThemeResource TextSecondaryBrush}"
+                                               FontSize="12"
+                                               Visibility="{Binding ConnectionBadgeVisibility}" />
+                                    <ProgressRing IsActive="{Binding IsBusyIndicatorActive}"
+                                                  Width="16"
+                                                  Height="16"
+                                                  Visibility="{Binding ActivityBadgeVisibility}"
+                                                  Foreground="{ThemeResource AccentBrush}" />
+                                    <TextBlock Text="{Binding ActivityBadgeText}"
+                                               Foreground="{ThemeResource AccentBrush}"
+                                               FontSize="12"
+                                               Visibility="{Binding ActivityBadgeVisibility}" />
+                                </StackPanel>
+
+                                <ComboBox MinWidth="132"
+                                          MaxWidth="184"
+                                          HorizontalAlignment="Right"
+                                          FontSize="12"
+                                          ItemsSource="{Binding AvailableModels}"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectedItem="{Binding SelectedModelOption, Mode=TwoWay}"
+                                          Visibility="{Binding ModelPickerVisibility}"
+                                          IsEnabled="{Binding IsModelPickerEnabled}" />
                             </StackPanel>
                         </Grid>
 
@@ -804,6 +818,7 @@
                             <Button Grid.Column="1"
                                     Width="52"
                                     Height="52"
+                                    HorizontalAlignment="Right"
                                     VerticalAlignment="Bottom"
                                     Click="OnSendClicked"
                                     IsEnabled="{Binding CanSend}"

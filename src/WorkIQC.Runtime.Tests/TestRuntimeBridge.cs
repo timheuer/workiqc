@@ -8,8 +8,11 @@ internal sealed class TestRuntimeBridge : ICopilotRuntimeBridge
     public Func<SessionConfiguration, CancellationToken, Task<string>> OnCreateSessionAsync { get; set; } =
         (_, _) => Task.FromResult("session-test");
 
-    public Func<string, CancellationToken, Task<bool>> OnResumeSessionAsync { get; set; } =
-        (_, _) => Task.FromResult(true);
+    public Func<string, string?, CancellationToken, Task<bool>> OnResumeSessionAsync { get; set; } =
+        (_, _, _) => Task.FromResult(true);
+
+    public Func<string, CancellationToken, Task<IReadOnlyList<CopilotModelDescriptor>>> OnListAvailableModelsAsync { get; set; } =
+        (_, _) => Task.FromResult<IReadOnlyList<CopilotModelDescriptor>>(Array.Empty<CopilotModelDescriptor>());
 
     public Func<string, CancellationToken, Task<SessionState>> OnGetSessionStateAsync { get; set; } =
         (sessionId, _) => Task.FromResult(new SessionState
@@ -42,11 +45,14 @@ internal sealed class TestRuntimeBridge : ICopilotRuntimeBridge
     public Task<string> CreateSessionAsync(SessionConfiguration config, CancellationToken cancellationToken = default)
         => OnCreateSessionAsync(config, cancellationToken);
 
-    public Task<bool> ResumeSessionAsync(string sessionId, CancellationToken cancellationToken = default)
+    public Task<bool> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
     {
         ResumeSessionCallCount++;
-        return OnResumeSessionAsync(sessionId, cancellationToken);
+        return OnResumeSessionAsync(sessionId, modelId, cancellationToken);
     }
+
+    public Task<IReadOnlyList<CopilotModelDescriptor>> ListAvailableModelsAsync(string workspacePath, CancellationToken cancellationToken = default)
+        => OnListAvailableModelsAsync(workspacePath, cancellationToken);
 
     public Task<SessionState> GetSessionStateAsync(string sessionId, CancellationToken cancellationToken = default)
         => OnGetSessionStateAsync(sessionId, cancellationToken);

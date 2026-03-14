@@ -33,6 +33,7 @@
       <Compile Include="..\WorkIQC.App\Services\ChatShellModels.cs" Link="App\Services\ChatShellModels.cs" />
       <Compile Include="..\WorkIQC.App\Services\IChatShellService.cs" Link="App\Services\IChatShellService.cs" />
       <Compile Include="..\WorkIQC.App\Services\ChatShellService.cs" Link="App\Services\ChatShellService.cs" />
+      <Compile Include="..\WorkIQC.App\Services\RollingFileTraceListener.cs" Link="App\Services\RollingFileTraceListener.cs" />
       <Compile Include="..\WorkIQC.App\Services\ThemeBrushResolver.cs" Link="App\Services\ThemeBrushResolver.cs" />
       <Compile Include="..\WorkIQC.App\Views\ComposerInputBehavior.cs" Link="App\Views\ComposerInputBehavior.cs" />
       <Compile Include="..\WorkIQC.App\ViewModels\ObservableObject.cs" Link="App\ViewModels\ObservableObject.cs" />

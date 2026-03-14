@@ -49,12 +49,26 @@ public sealed class SessionCoordinatorTests
     [TestMethod]
     public async Task ResumeSessionAsync_DelegatesToRuntimeBridge()
     {
-        _bridge.OnResumeSessionAsync = (sessionId, _) => Task.FromResult(sessionId == "session-1");
+        _bridge.OnResumeSessionAsync = (sessionId, modelId, _) => Task.FromResult(sessionId == "session-1" && modelId == "gpt-5");
 
-        var resumed = await _coordinator.ResumeSessionAsync("session-1");
+        var resumed = await _coordinator.ResumeSessionAsync("session-1", "gpt-5");
 
         Assert.IsTrue(resumed);
         Assert.AreEqual(1, _bridge.ResumeSessionCallCount);
+    }
+
+    [TestMethod]
+    public async Task ListAvailableModelsAsync_DelegatesToRuntimeBridge()
+    {
+        _bridge.OnListAvailableModelsAsync = (workspacePath, _) => Task.FromResult<IReadOnlyList<CopilotModelDescriptor>>(
+        [
+            new("gpt-5", "GPT-5")
+        ]);
+
+        var models = await _coordinator.ListAvailableModelsAsync(@"D:\temp\workspace");
+
+        Assert.HasCount(1, models);
+        Assert.AreEqual("gpt-5", models[0].Id);
     }
 
     [TestMethod]
