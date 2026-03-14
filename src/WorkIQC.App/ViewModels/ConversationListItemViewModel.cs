@@ -1,3 +1,4 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Media;
 using WorkIQC.App.Services;
 
@@ -6,6 +7,7 @@ namespace WorkIQC.App.ViewModels
     public sealed class ConversationListItemViewModel : ObservableObject
     {
         private bool _isSelected;
+        private bool _isProcessing;
 
         public string Id { get; set; } = string.Empty;
 
@@ -32,6 +34,22 @@ namespace WorkIQC.App.ViewModels
             }
         }
 
+        public bool IsProcessing
+        {
+            get => _isProcessing;
+            set
+            {
+                if (!SetProperty(ref _isProcessing, value))
+                {
+                    return;
+                }
+
+                RaisePropertyChanged(nameof(ProcessingIndicatorVisibility));
+            }
+        }
+
+        public Visibility ProcessingIndicatorVisibility => IsProcessing ? Visibility.Visible : Visibility.Collapsed;
+
         public Brush BackgroundBrush => ThemeBrushResolver.GetBrush(IsSelected ? "SidebarItemSelectedBackgroundBrush" : "SidebarItemBackgroundBrush");
 
         public Brush BorderBrush => ThemeBrushResolver.GetBrush(IsSelected ? "SidebarItemSelectedBorderBrush" : "SidebarItemBorderBrush");
@@ -49,7 +67,7 @@ namespace WorkIQC.App.ViewModels
 
                 if (updated == now)
                 {
-                    return UpdatedAt.ToString("h:mm tt");
+                    return UpdatedAt.ToString("t");
                 }
 
                 if (updated == now.AddDays(-1))
@@ -62,7 +80,7 @@ namespace WorkIQC.App.ViewModels
                     return UpdatedAt.ToString("ddd");
                 }
 
-                return UpdatedAt.ToString("MMM d");
+                return UpdatedAt.ToString("m");
             }
         }
 

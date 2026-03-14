@@ -84,12 +84,12 @@ namespace WorkIQC.App.ViewModels
 
         public string RoleLabel => Role == ChatRole.User ? "You" : "Assistant";
 
-        public string TimestampLabel => Timestamp.ToString("h:mm tt");
+        public string TimestampLabel => Timestamp.ToString("t");
 
         /// <summary>
         /// Gets a compact formatted timestamp for display in the chat transcript.
         /// </summary>
-        public string FormattedTimestamp => Timestamp.ToString("h:mm tt");
+        public string FormattedTimestamp => Timestamp.ToString("t");
 
         /// <summary>
         /// Gets the Segoe Fluent Icons glyph for the avatar based on role.
@@ -100,6 +100,10 @@ namespace WorkIQC.App.ViewModels
 
         public Visibility TypingIndicatorVisibility => IsStreaming && string.IsNullOrEmpty(Content) ? Visibility.Visible : Visibility.Collapsed;
 
+        public Visibility CopyButtonVisibility => Role == ChatRole.Assistant && !IsStreaming && !string.IsNullOrEmpty(Content)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+
         public void AppendContent(string chunk)
             => Content += chunk;
 
@@ -107,6 +111,7 @@ namespace WorkIQC.App.ViewModels
         {
             Timestamp = completedAt;
             IsStreaming = false;
+            RaisePropertyChanged(nameof(CopyButtonVisibility));
         }
 
         public ChatMessageViewModel Clone()

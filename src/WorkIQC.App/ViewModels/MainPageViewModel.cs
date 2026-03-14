@@ -7,23 +7,23 @@ namespace WorkIQC.App.ViewModels
 {
     public sealed class MainPageViewModel : ObservableObject
     {
-        private const string RuntimeConnectionBadge = "WorkIQ runtime";
-        private const string WorkIqBlockedConnectionBadge = "WorkIQ blocked";
+        private const string RuntimeConnectionBadge = "WorkICQ runtime";
+        private const string WorkIqBlockedConnectionBadge = "WorkICQ blocked";
         private readonly Dictionary<string, ConversationSeed> _conversations = new Dictionary<string, ConversationSeed>();
         private readonly IChatShellService _chatShellService;
 
+        public event EventHandler? StreamCompleted;
+
         private bool _initialized;
         private bool _isSettingsViewActive;
-        private bool _isSending;
-        private bool _isStreaming;
-        private string? _runtimeActivityText;
+        private bool _isNotificationSoundEnabled = true;
         private string? _selectedConversationId;
         private ShellSetupState _setupState = new(
             RequiresUserAction: true,
             CanAttemptRuntime: false,
             IsEulaAccepted: false,
             IsAuthenticationHandoffStarted: false,
-            SummaryText: "WorkIQ setup has not been checked yet.",
+            SummaryText: "WorkICQ setup has not been checked yet.",
             WorkIQPackageReference: WorkIQC.Runtime.Abstractions.Models.WorkIQRuntimeDefaults.PackageReference,
             WorkspacePath: string.Empty,
             McpConfigPath: string.Empty,
@@ -31,8 +31,8 @@ namespace WorkIQC.App.ViewModels
             EulaMarkerPath: string.Empty,
             AuthenticationMarkerPath: string.Empty,
             AuthenticationCommandLine: WorkIQC.Runtime.Abstractions.Models.WorkIQRuntimeDefaults.CopilotLoginCommand,
-            Blockers: Array.Empty<string>(),
-            Prerequisites: Array.Empty<string>());
+            Blockers: Array.Empty<SetupCheckItem>(),
+            Prerequisites: Array.Empty<SetupCheckItem>());
         private string _composerText = string.Empty;
         private string _connectionBadgeText = "Preview data";
         private string _sidebarFooterText = "Local history is ready. Runtime updates appear here when live handoff is active.";
@@ -44,8 +44,8 @@ namespace WorkIQC.App.ViewModels
             ConversationGroups = new ObservableCollection<ConversationGroupViewModel>();
             SidebarItems = new ObservableCollection<ConversationListItemViewModel>();
             Messages = new ObservableCollection<ChatMessageViewModel>();
-            SetupBlockers = new ObservableCollection<string>();
-            SetupPrerequisites = new ObservableCollection<string>();
+            SetupBlockers = new ObservableCollection<SetupCheckItem>();
+            SetupPrerequisites = new ObservableCollection<SetupCheckItem>();
 
             Messages.CollectionChanged += (_, _) =>
             {
@@ -62,9 +62,9 @@ namespace WorkIQC.App.ViewModels
 
         public ObservableCollection<ChatMessageViewModel> Messages { get; }
 
-        public ObservableCollection<string> SetupBlockers { get; }
+        public ObservableCollection<SetupCheckItem> SetupBlockers { get; }
 
-        public ObservableCollection<string> SetupPrerequisites { get; }
+        public ObservableCollection<SetupCheckItem> SetupPrerequisites { get; }
 
         public string? SelectedConversationId => _selectedConversationId;
 
@@ -89,6 +89,12 @@ namespace WorkIQC.App.ViewModels
 
         public string SettingsButtonGlyph => "\uE713";
 
+        public bool IsNotificationSoundEnabled
+        {
+            get => _isNotificationSoundEnabled;
+            set => SetProperty(ref _isNotificationSoundEnabled, value);
+        }
+
         public string ComposerText
         {
             get => _composerText;
@@ -103,18 +109,34 @@ namespace WorkIQC.App.ViewModels
             }
         }
 
-        public bool CanSend => !IsBusy && !string.IsNullOrWhiteSpace(ComposerText);
+        public bool CanSend => !IsSelectedConversationBusy && !string.IsNullOrWhiteSpace(ComposerText);
 
-        public string SendButtonText => IsBusy ? "Busy" : "Send";
+        public string SendButtonText => IsSelectedConversationBusy ? "Busy" : "Send";
 
         public string ComposerHintText => "Press Enter to send. Shift+Enter adds a new line.";
 
         public string ComposerStatusText
-            => IsSending
-                ? "Sending prompt…"
-                : IsStreaming
-                    ? _runtimeActivityText ?? ResolveStreamingStatusText()
-                    : "Ready to send";
+        {
+            get
+            {
+                if (!TryGetSelectedConversation(out var conversation) || !conversation.IsProcessing)
+                {
+                    return "Ready to send";
+                }
+
+                if (conversation.IsSendingPhase)
+                {
+                    return "Sending prompt…";
+                }
+
+                if (conversation.RuntimeActivityText is not null)
+                {
+                    return conversation.RuntimeActivityText;
+                }
+
+                return ResolveStreamingStatusText();
+            }
+        }
 
         public string SidebarFooterText
         {
@@ -146,7 +168,7 @@ namespace WorkIQC.App.ViewModels
 
         public bool RequiresSetupPrompt => _setupState.RequiresUserAction;
 
-        public string SetupTitle => _setupState.RequiresUserAction ? "Complete WorkIQ bootstrap" : "WorkIQ bootstrap is ready";
+        public string SetupTitle => _setupState.RequiresUserAction ? "Complete WorkICQ bootstrap" : "WorkICQ bootstrap is ready";
 
         public string SetupSummaryText => _setupState.SummaryText;
 
@@ -165,23 +187,34 @@ namespace WorkIQC.App.ViewModels
         public string AuthStepStatusText => _setupState.IsAuthenticationHandoffStarted ? "Completed" : "Required";
 
         public string EulaStepDescription => _setupState.IsEulaAccepted
-            ? $"Verified during WorkIQ bootstrap and recorded at {_setupState.EulaMarkerPath}."
-            : $"Review the terms, then complete the WorkIQ consent bootstrap before the first live session. App-local files alone do not complete consent. Evidence is stored at {_setupState.EulaMarkerPath}.";
+            ? $"Verified during WorkICQ bootstrap and recorded at {_setupState.EulaMarkerPath}."
+            : $"Review the terms, then complete the WorkICQ consent bootstrap before the first live session. App-local files alone do not complete consent. Evidence is stored at {_setupState.EulaMarkerPath}.";
 
         public string AuthStepDescription => _setupState.IsAuthenticationHandoffStarted
-            ? $"Copilot auth handoff was recorded locally. This does not prove WorkIQ resolved your identity yet. Evidence is tracked at {_setupState.AuthenticationMarkerPath}."
-            : $"Run {SetupAuthenticationCommandText} once during bootstrap before the first live WorkIQ session.";
+            ? $"Copilot auth handoff was recorded locally. This does not prove WorkICQ resolved your identity yet. Evidence is tracked at {_setupState.AuthenticationMarkerPath}."
+            : $"Run {SetupAuthenticationCommandText} once during bootstrap before the first live WorkICQ session.";
 
-        public Visibility ActivityBadgeVisibility => IsBusy ? Visibility.Visible : Visibility.Collapsed;
+        public Visibility ActivityBadgeVisibility => IsSelectedConversationBusy ? Visibility.Visible : Visibility.Collapsed;
 
-        public bool IsBusyIndicatorActive => IsBusy;
+        public bool IsBusyIndicatorActive => IsSelectedConversationBusy;
 
         public string ActivityBadgeText
-            => IsSending
-                ? "Sending"
-                : IsStreaming
-                    ? string.IsNullOrWhiteSpace(_runtimeActivityText) ? "Streaming" : "Tool activity"
-                    : string.Empty;
+        {
+            get
+            {
+                if (!TryGetSelectedConversation(out var conversation) || !conversation.IsProcessing)
+                {
+                    return string.Empty;
+                }
+
+                if (conversation.IsSendingPhase)
+                {
+                    return "Sending";
+                }
+
+                return string.IsNullOrWhiteSpace(conversation.RuntimeActivityText) ? "Streaming" : "Tool activity";
+            }
+        }
 
         public Visibility TranscriptVisibility => Messages.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
 
@@ -194,35 +227,8 @@ namespace WorkIQC.App.ViewModels
                 ? "Choose a recent thread or begin a new one. The shell already remembers local state and keeps the main workspace centered on your next question."
                 : "The draft is selected. Send a first prompt whenever you're ready.";
 
-        private bool IsSending
-        {
-            get => _isSending;
-            set
-            {
-                if (!SetProperty(ref _isSending, value))
-                {
-                    return;
-                }
-
-                RaiseBusyStateChanged();
-            }
-        }
-
-        private bool IsStreaming
-        {
-            get => _isStreaming;
-            set
-            {
-                if (!SetProperty(ref _isStreaming, value))
-                {
-                    return;
-                }
-
-                RaiseBusyStateChanged();
-            }
-        }
-
-        private bool IsBusy => IsSending || IsStreaming;
+        private bool IsSelectedConversationBusy
+            => TryGetSelectedConversation(out var conversation) && conversation.IsProcessing;
 
         public async Task InitializeAsync()
         {
@@ -273,6 +279,8 @@ namespace WorkIQC.App.ViewModels
                 return;
             }
 
+            removedConversation.StreamingCts?.Cancel();
+
             if (removedConversation.IsPersisted)
             {
                 await _chatShellService.DeleteConversationAsync(id);
@@ -321,7 +329,7 @@ namespace WorkIQC.App.ViewModels
 
             var now = DateTime.Now;
             var userMessage = new ChatMessageViewModel(ChatRole.User, "You", prompt, now);
-            Messages.Add(userMessage);
+            AddMessageToConversation(conversation, userMessage);
             conversation.Messages.Add(new MessageSeed(ChatRole.User, "You", prompt, now));
 
             if (conversation.IsDraft)
@@ -332,52 +340,91 @@ namespace WorkIQC.App.ViewModels
 
             conversation.Preview = prompt;
             conversation.UpdatedAt = now;
+            conversation.IsSendingPhase = true;
+            SetConversationProcessing(conversation, true);
             SelectConversation(conversation.Id, keepMessages: true);
 
-            IsSending = true;
-            await Task.Delay(260);
+            // Fire-and-forget: stream the response in the background so the UI stays unblocked
+            _ = StreamConversationResponseAsync(conversation, prompt);
+        }
 
-            var assistantMessage = new ChatMessageViewModel(ChatRole.Assistant, "WorkIQ", string.Empty, DateTime.Now, isStreaming: true);
-            Messages.Add(assistantMessage);
-
-            IsSending = false;
-            IsStreaming = true;
-
-            var response = await _chatShellService.SendAsync(
-                new ShellSendRequest(conversation.Id, conversation.Title, prompt, conversation.SessionId));
-
-            PromoteConversationIdentity(conversation, response.ConversationId);
-            conversation.Title = response.ConversationTitle;
-            conversation.IsPersisted = response.IsPersisted;
-            conversation.IsDraft = response.IsDraft;
-            conversation.SessionId = response.SessionId;
-            ConnectionBadgeText = response.ConnectionBadgeText;
-            SidebarFooterText = response.SidebarFooterText;
-
-            _runtimeActivityText = null;
-            RaisePropertyChanged(nameof(ComposerStatusText));
-            RaisePropertyChanged(nameof(ActivityBadgeText));
-
-            var activityTask = ConsumeActivityUpdatesAsync(response.ActivityStream, response.SidebarFooterText);
-            await foreach (var chunk in response.ResponseStream)
+        private async Task StreamConversationResponseAsync(ConversationSeed conversation, string prompt)
+        {
+            try
             {
-                assistantMessage.AppendContent(chunk);
+                await Task.Delay(260);
+
+                var assistantMessage = new ChatMessageViewModel(ChatRole.Assistant, "WorkICQ", string.Empty, DateTime.Now, isStreaming: true);
+                AddMessageToConversation(conversation, assistantMessage);
+
+                var cts = new CancellationTokenSource();
+                conversation.StreamingCts = cts;
+
+                ShellSendResponse response;
+                try
+                {
+                    response = await _chatShellService.SendAsync(
+                        new ShellSendRequest(conversation.Id, conversation.Title, prompt, conversation.SessionId));
+                }
+                catch
+                {
+                    conversation.IsSendingPhase = false;
+                    assistantMessage.AppendContent("An error occurred while sending the message.");
+                    assistantMessage.CompleteStreaming(DateTime.Now);
+                    SetConversationProcessing(conversation, false);
+                    return;
+                }
+
+                PromoteConversationIdentity(conversation, response.ConversationId);
+                conversation.Title = response.ConversationTitle;
+                conversation.IsPersisted = response.IsPersisted;
+                conversation.IsDraft = response.IsDraft;
+                conversation.SessionId = response.SessionId;
+                conversation.IsSendingPhase = false;
+
+                if (IsConversationSelected(conversation))
+                {
+                    ConnectionBadgeText = response.ConnectionBadgeText;
+                    SidebarFooterText = response.SidebarFooterText;
+                }
+
+                conversation.RuntimeActivityText = null;
+                RaiseBusyStateChanged();
+
+                var activityTask = ConsumeActivityUpdatesAsync(conversation, response.ActivityStream, response.SidebarFooterText);
+                await foreach (var chunk in response.ResponseStream)
+                {
+                    if (cts.IsCancellationRequested)
+                    {
+                        break;
+                    }
+
+                    assistantMessage.AppendContent(chunk);
+                }
+                await activityTask;
+
+                var completedAt = DateTime.Now;
+                assistantMessage.CompleteStreaming(completedAt);
+                conversation.Messages.Add(new MessageSeed(ChatRole.Assistant, "WorkICQ", assistantMessage.Content, completedAt));
+                conversation.Preview = assistantMessage.Content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
+                    ?? assistantMessage.Content;
+                conversation.UpdatedAt = completedAt;
+
+                if (IsConversationSelected(conversation))
+                {
+                    SidebarFooterText = response.SidebarFooterText;
+                }
+
+                if (IsNotificationSoundEnabled)
+                {
+                    StreamCompleted?.Invoke(this, EventArgs.Empty);
+                }
             }
-            await activityTask;
-
-            var completedAt = DateTime.Now;
-            assistantMessage.CompleteStreaming(completedAt);
-            conversation.Messages.Add(new MessageSeed(ChatRole.Assistant, "WorkIQ", assistantMessage.Content, completedAt));
-            conversation.Preview = assistantMessage.Content.Split(Environment.NewLine, StringSplitOptions.RemoveEmptyEntries).FirstOrDefault()
-                ?? assistantMessage.Content;
-            conversation.UpdatedAt = completedAt;
-            SelectConversation(conversation.Id, keepMessages: true);
-
-            _runtimeActivityText = null;
-            SidebarFooterText = response.SidebarFooterText;
-            RaisePropertyChanged(nameof(ComposerStatusText));
-            RaisePropertyChanged(nameof(ActivityBadgeText));
-            IsStreaming = false;
+            finally
+            {
+                SetConversationProcessing(conversation, false);
+                SelectConversation(conversation.Id, keepMessages: true);
+            }
         }
 
         public async Task AcceptWorkIqTermsAsync()
@@ -389,17 +436,27 @@ namespace WorkIQC.App.ViewModels
         public async Task RefreshSetupAsync()
             => ApplySetupState(await _chatShellService.RefreshSetupAsync());
 
-        private async Task ConsumeActivityUpdatesAsync(IAsyncEnumerable<string> activityStream, string baselineSidebarFooter)
+        private async Task ConsumeActivityUpdatesAsync(ConversationSeed conversation, IAsyncEnumerable<string> activityStream, string baselineSidebarFooter)
         {
             await foreach (var update in activityStream)
             {
                 if (string.IsNullOrWhiteSpace(update))
                 {
-                    continue;
+                    conversation.RuntimeActivityText = null;
+                    if (IsConversationSelected(conversation))
+                    {
+                        SidebarFooterText = baselineSidebarFooter;
+                    }
+                }
+                else
+                {
+                    conversation.RuntimeActivityText = update.Trim();
+                    if (IsConversationSelected(conversation))
+                    {
+                        SidebarFooterText = $"{baselineSidebarFooter} {conversation.RuntimeActivityText}";
+                    }
                 }
 
-                _runtimeActivityText = update.Trim();
-                SidebarFooterText = $"{baselineSidebarFooter} {_runtimeActivityText}";
                 RaisePropertyChanged(nameof(ComposerStatusText));
                 RaisePropertyChanged(nameof(ActivityBadgeText));
             }
@@ -456,6 +513,10 @@ namespace WorkIQC.App.ViewModels
 
         private static ConversationSeed CreateSeed(ShellConversationSnapshot snapshot)
         {
+            var messages = snapshot.Messages
+                .Select(message => new MessageSeed(message.Role, message.Author, message.Content, message.Timestamp))
+                .ToList();
+
             return new ConversationSeed
             {
                 Id = snapshot.Id,
@@ -465,8 +526,9 @@ namespace WorkIQC.App.ViewModels
                 IsPersisted = snapshot.IsPersisted,
                 IsDraft = snapshot.IsDraft,
                 SessionId = snapshot.SessionId,
-                Messages = snapshot.Messages
-                    .Select(message => new MessageSeed(message.Role, message.Author, message.Content, message.Timestamp))
+                Messages = messages,
+                ViewMessages = messages
+                    .Select(message => message.ToViewModel())
                     .ToList()
             };
         }
@@ -480,6 +542,7 @@ namespace WorkIQC.App.ViewModels
 
             _selectedConversationId = id;
             RefreshConversationGroups();
+            RaiseBusyStateChanged();
 
             if (keepMessages)
             {
@@ -487,7 +550,7 @@ namespace WorkIQC.App.ViewModels
             }
 
             Messages.Clear();
-            foreach (var message in conversation.Messages.Select(message => message.ToViewModel()))
+            foreach (var message in conversation.ViewMessages)
             {
                 Messages.Add(message);
             }
@@ -523,7 +586,8 @@ namespace WorkIQC.App.ViewModels
                         Title = conversation.Title,
                         Preview = conversation.Preview,
                         UpdatedAt = conversation.UpdatedAt,
-                        IsSelected = conversation.Id == _selectedConversationId
+                        IsSelected = conversation.Id == _selectedConversationId,
+                        IsProcessing = conversation.IsProcessing
                     };
 
                     groupViewModel.Items.Add(item);
@@ -544,6 +608,46 @@ namespace WorkIQC.App.ViewModels
             RaisePropertyChanged(nameof(ActivityBadgeVisibility));
             RaisePropertyChanged(nameof(ActivityBadgeText));
             RaisePropertyChanged(nameof(ComposerStatusText));
+        }
+
+        private bool TryGetSelectedConversation(out ConversationSeed conversation)
+        {
+            conversation = null!;
+            return _selectedConversationId is not null
+                && _conversations.TryGetValue(_selectedConversationId, out conversation!);
+        }
+
+        private bool IsConversationSelected(ConversationSeed conversation)
+            => string.Equals(conversation.Id, _selectedConversationId, StringComparison.Ordinal);
+
+        private void AddMessageToConversation(ConversationSeed conversation, ChatMessageViewModel message)
+        {
+            conversation.ViewMessages.Add(message);
+            if (IsConversationSelected(conversation))
+            {
+                Messages.Add(message);
+            }
+        }
+
+        private void SetConversationProcessing(ConversationSeed conversation, bool isProcessing)
+        {
+            conversation.IsProcessing = isProcessing;
+            conversation.RuntimeActivityText = isProcessing ? null : null;
+
+            // Update the matching sidebar item
+            foreach (var item in SidebarItems)
+            {
+                if (string.Equals(item.Id, conversation.Id, StringComparison.Ordinal))
+                {
+                    item.IsProcessing = isProcessing;
+                    break;
+                }
+            }
+
+            if (IsConversationSelected(conversation))
+            {
+                RaiseBusyStateChanged();
+            }
         }
 
         private void ApplySetupState(ShellSetupState setupState)
@@ -568,7 +672,7 @@ namespace WorkIQC.App.ViewModels
             RaisePropertyChanged(nameof(AuthStepDescription));
         }
 
-        private static void ReplaceItems(ObservableCollection<string> target, IReadOnlyList<string> items)
+        private static void ReplaceItems<T>(ObservableCollection<T> target, IReadOnlyList<T> items)
         {
             target.Clear();
             foreach (var item in items)
@@ -580,8 +684,8 @@ namespace WorkIQC.App.ViewModels
         private string ResolveStreamingStatusText()
             => ConnectionBadgeText switch
             {
-                RuntimeConnectionBadge => "Streaming WorkIQ response…",
-                WorkIqBlockedConnectionBadge => "Showing WorkIQ blocking error…",
+                RuntimeConnectionBadge => "Streaming WorkICQ response…",
+                WorkIqBlockedConnectionBadge => "Showing WorkICQ blocking error…",
                 _ => "Streaming placeholder response…"
             };
 
@@ -618,7 +722,7 @@ namespace WorkIQC.App.ViewModels
             var today = DateTime.Now.Date;
             if (timestamp.Date == today)
             {
-                return timestamp.ToString("h:mm tt");
+                return timestamp.ToString("t");
             }
 
             if (timestamp.Date == today.AddDays(-1))
@@ -626,7 +730,7 @@ namespace WorkIQC.App.ViewModels
                 return "yesterday";
             }
 
-            return timestamp.ToString("MMM d");
+            return timestamp.ToString("m");
         }
 
         private sealed class ConversationSeed
@@ -645,7 +749,17 @@ namespace WorkIQC.App.ViewModels
 
             public string? SessionId { get; set; }
 
+            public bool IsProcessing { get; set; }
+
+            public bool IsSendingPhase { get; set; }
+
+            public string? RuntimeActivityText { get; set; }
+
+            public CancellationTokenSource? StreamingCts { get; set; }
+
             public List<MessageSeed> Messages { get; set; } = new List<MessageSeed>();
+
+            public List<ChatMessageViewModel> ViewMessages { get; set; } = new List<ChatMessageViewModel>();
         }
 
         private sealed class MessageSeed

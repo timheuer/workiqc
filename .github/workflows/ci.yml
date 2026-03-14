@@ -1,0 +1,38 @@
+name: CI Build
+
+on:
+  push:
+    branches: ['*']
+  pull_request:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.x'
+
+      - name: Restore
+        run: dotnet restore src/WorkIQC.slnx
+
+      - name: Build
+        run: dotnet build src/WorkIQC.slnx --no-restore -c Release -p:Platform=x64
+
+      - name: Test
+        run: dotnet test src/WorkIQC.slnx --no-build -c Release -p:Platform=x64
+
+      - name: Publish
+        run: dotnet publish src/WorkIQC.App/WorkIQC.App.csproj -c Release -r win-x64 -p:Platform=x64 --self-contained -o publish/WorkICQ
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: WorkICQ-win-x64
+          path: publish/WorkICQ
+          compression-level: 9

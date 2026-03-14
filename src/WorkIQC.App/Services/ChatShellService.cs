@@ -15,13 +15,13 @@ public sealed class ChatShellService : IChatShellService
     private const string LocalHistoryConnectionBadge = "Local history";
     private const string RuntimeSetupConnectionBadge = "Runtime setup";
     private const string BootstrapReadyConnectionBadge = "Bootstrap ready";
-    private const string RuntimeConnectionBadge = "WorkIQ runtime";
+    private const string RuntimeConnectionBadge = "WorkICQ runtime";
     private const string RuntimeBlockedConnectionBadge = "Runtime blocked";
-    private const string WorkIqBlockedConnectionBadge = "WorkIQ blocked";
+    private const string WorkIqBlockedConnectionBadge = "WorkICQ blocked";
     private const string LocalHistorySidebarFooter = "Saved conversations reopen from local history, but new prompts still go through the runtime path when it is ready.";
-    private const string RuntimeSidebarFooter = "The active reply is coming from the WorkIQ runtime. Local history only keeps the thread and session resume hints.";
-    private const string RuntimeBlockedSidebarFooter = "This turn was not answered locally. The app only returns live Copilot SDK output routed through the configured WorkIQ MCP path.";
-    private const string WorkIqBlockingSidebarFooter = "This workplace request requires a live WorkIQ call. The app did not answer from local history, saved org data, or placeholder story content.";
+    private const string RuntimeSidebarFooter = "The active reply is coming from the WorkICQ runtime. Local history only keeps the thread and session resume hints.";
+    private const string RuntimeBlockedSidebarFooter = "This turn was not answered locally. The app only returns live Copilot SDK output routed through the configured WorkICQ MCP path.";
+    private const string WorkIqBlockingSidebarFooter = "This workplace request requires a live WorkICQ call. The app did not answer from local history, saved org data, or placeholder story content.";
     private static readonly string[] LiveWorkIqPromptMarkers =
     [
         "direct report",
@@ -200,13 +200,13 @@ public sealed class ChatShellService : IChatShellService
                 WriteDiagnostic(
                     "runtime.plan",
                     requiresLiveWorkIq
-                        ? "Bootstrap blockers remain, so this workplace/org turn is blocked until the live WorkIQ path is available."
+                        ? "Bootstrap blockers remain, so this workplace/org turn is blocked until the live WorkICQ path is available."
                         : "Bootstrap blockers remain, so this turn is blocked instead of answering from local content.");
                 return CreateBlockedPlan(
                     conversationId,
                     prompt,
                     sessionId,
-                    ComposeStatusText(bootstrapSummary.SidebarStatusText, bootstrapSummary.SetupState.Blockers.FirstOrDefault()),
+                    ComposeStatusText(bootstrapSummary.SidebarStatusText, bootstrapSummary.SetupState.Blockers.FirstOrDefault()?.Text),
                     requiresLiveWorkIq);
             }
 
@@ -218,13 +218,13 @@ public sealed class ChatShellService : IChatShellService
                 SystemGuidance = new Dictionary<string, string>
                 {
                     ["app-identity"] = "The app name WorkIQC identifies the desktop shell only. It is not a knowledge source.",
-                    ["answer-sources"] = "Use live Copilot SDK reasoning and the allowed WorkIQ MCP tool path only. Never answer from local history, sample conversations, placeholder content, or setup metadata.",
-                    ["tool-posture"] = "WorkIQ-first",
-                    ["current-user"] = "For first-person workplace requests such as 'my direct reports', 'my manager', 'my meetings', or 'who reports to me', treat 'me', 'my', and 'I' as the currently authenticated Copilot/WorkIQ user.",
-                    ["principal-resolution"] = "Invoke WorkIQ first for first-person workplace questions. Only ask the user for their own name or work email if the WorkIQ tool explicitly reports that the signed-in principal could not be resolved or multiple people matched.",
-                    ["eula-recovery"] = "If WorkIQ reports that EULA acceptance is required, stop and tell the user to complete the WorkIQ consent bootstrap in Settings before retrying the request.",
-                    ["allowed-tools"] = "All WorkIQ MCP tools (ask_work_iq, accept_eula, and any future additions)",
-                    ["ui-contract"] = "Stream markdown-rich assistant text and keep WorkIQ usage explicit."
+                    ["answer-sources"] = "Use live Copilot SDK reasoning and the allowed WorkICQ MCP tool path only. Never answer from local history, sample conversations, placeholder content, or setup metadata.",
+                    ["tool-posture"] = "WorkICQ-first",
+                    ["current-user"] = "For first-person workplace requests such as 'my direct reports', 'my manager', 'my meetings', or 'who reports to me', treat 'me', 'my', and 'I' as the currently authenticated Copilot/WorkICQ user.",
+                    ["principal-resolution"] = "Invoke WorkICQ first for first-person workplace questions. Only ask the user for their own name or work email if the WorkICQ tool explicitly reports that the signed-in principal could not be resolved or multiple people matched.",
+                    ["eula-recovery"] = "If WorkICQ reports that EULA acceptance is required, stop and tell the user to complete the WorkICQ consent bootstrap in Settings before retrying the request.",
+                    ["allowed-tools"] = "All WorkICQ MCP tools (ask_work_iq, accept_eula, and any future additions)",
+                    ["ui-contract"] = "Stream markdown-rich assistant text and keep WorkICQ usage explicit."
                 }
             };
 
@@ -268,7 +268,7 @@ public sealed class ChatShellService : IChatShellService
                     sessionId,
                     ComposeStatusText(
                         requiresLiveWorkIq
-                            ? "The live WorkIQ handoff failed before the request could run."
+                            ? "The live WorkICQ handoff failed before the request could run."
                             : "The Copilot SDK handoff failed before the request could run.",
                         sendResponse.ErrorMessage ?? sendResponse.ErrorCode),
                     requiresLiveWorkIq);
@@ -324,7 +324,7 @@ public sealed class ChatShellService : IChatShellService
                 ComposeStatusText(
                     bootstrapSummary?.SidebarStatusText,
                     requiresLiveWorkIq
-                        ? $"Unexpected live WorkIQ failure: {exception.Message}"
+                        ? $"Unexpected live WorkICQ failure: {exception.Message}"
                         : $"Unexpected Copilot SDK handoff failure: {exception.Message}"),
                 requiresLiveWorkIq);
         }
@@ -357,41 +357,49 @@ public sealed class ChatShellService : IChatShellService
 
         var blockers = dependencies.Dependencies
             .Where(static dependency => !dependency.IsAvailable)
-            .Select(dependency => dependency.Details ?? $"{dependency.Name} is unavailable.")
+            .Select(dependency => new SetupCheckItem(dependency.Details ?? $"{dependency.Name} is unavailable.", false))
             .Concat(dependencies.Capabilities.Where(static capability => capability.Status != RuntimeCapabilityStatus.Available)
-                .Select(capability => capability.Resolution ?? capability.Details ?? $"{capability.Name} requires attention."))
+                .Select(capability => new SetupCheckItem(capability.Resolution ?? capability.Details ?? $"{capability.Name} requires attention.", false)))
             .Concat(workIq.Capabilities.Where(static capability => capability.Status != RuntimeCapabilityStatus.Available)
-                .Select(capability => capability.Resolution ?? capability.Details ?? $"{capability.Name} requires attention."))
+                .Select(capability => new SetupCheckItem(capability.Resolution ?? capability.Details ?? $"{capability.Name} requires attention.", false)))
             .ToList();
 
         if (!eula.CanProceed)
         {
-            blockers.Add(eula.Resolution ?? eula.Details ?? "WorkIQ EULA acceptance is still required.");
+            blockers.Add(new SetupCheckItem(eula.Resolution ?? eula.Details ?? "WorkICQ EULA acceptance is still required.", false));
         }
 
         if (!auth.CanProceed)
         {
-            blockers.Add(auth.Resolution ?? auth.Details ?? "Copilot authentication handoff is still required.");
+            blockers.Add(new SetupCheckItem(auth.Resolution ?? auth.Details ?? "Copilot authentication handoff is still required.", false));
         }
 
         var prerequisites = dependencies.Dependencies
-            .Select(dependency => dependency.IsAvailable
-                ? $"{dependency.Name}: ready ({dependency.ResolvedPath ?? "resolved"})"
-                : $"{dependency.Name}: {dependency.Details ?? "missing"}")
+            .Select(dependency => new SetupCheckItem(
+                dependency.IsAvailable
+                    ? $"{dependency.Name}: ready ({dependency.ResolvedPath ?? "resolved"})"
+                    : $"{dependency.Name}: {dependency.Details ?? "missing"}",
+                dependency.IsAvailable))
             .Concat(
                 workIq.Capabilities.Select(capability =>
-                    $"{capability.Name}: {(capability.Status == RuntimeCapabilityStatus.Available ? "ready" : capability.Resolution ?? capability.Details ?? "attention required")}"))
-            .Append(eula.CanProceed
-                ? $"workiq.eula: accepted ({eula.MarkerPath})"
-                : $"workiq.eula: {eula.Details ?? eula.Resolution ?? "attention required"}")
-            .Append(auth.CanProceed
-                ? $"copilot.auth: ready ({auth.Details ?? auth.MarkerPath})"
-                : $"copilot.auth: {auth.Resolution ?? auth.Details ?? "attention required"}")
+                    new SetupCheckItem(
+                        $"{capability.Name}: {(capability.Status == RuntimeCapabilityStatus.Available ? "ready" : capability.Resolution ?? capability.Details ?? "attention required")}",
+                        capability.Status == RuntimeCapabilityStatus.Available)))
+            .Append(new SetupCheckItem(
+                eula.CanProceed
+                    ? $"WorkICQ.eula: accepted ({eula.MarkerPath})"
+                    : $"WorkICQ.eula: {eula.Details ?? eula.Resolution ?? "attention required"}",
+                eula.CanProceed))
+            .Append(new SetupCheckItem(
+                auth.CanProceed
+                    ? $"copilot.auth: ready ({auth.Details ?? auth.MarkerPath})"
+                    : $"copilot.auth: {auth.Resolution ?? auth.Details ?? "attention required"}",
+                auth.CanProceed))
             .ToList();
 
         var statusText = blockers.Count > 0
-            ? $"WorkIQ bootstrap still needs attention before the next live session: {blockers[0]}"
-            : "WorkIQ bootstrap is ready. Saved history only reopens the thread; the next send can create or resume a live WorkIQ-backed session.";
+            ? $"WorkICQ bootstrap still needs attention before the next live session: {blockers[0].Text}"
+            : "WorkICQ bootstrap is ready. Saved history only reopens the thread; the next send can create or resume a live WorkICQ-backed session.";
 
         WriteDiagnostic(
             "bootstrap.summary",
@@ -432,20 +440,20 @@ public sealed class ChatShellService : IChatShellService
             WriteDiagnostic("bootstrap.error", exception.ToString());
             return new BootstrapSummary(
                 RuntimeSetupConnectionBadge,
-                $"WorkIQ bootstrap check failed: {exception.Message}",
+                $"WorkICQ bootstrap check failed: {exception.Message}",
                 false,
                 CreateWorkspacePlaceholder(),
-                CreateSetupPlaceholder($"WorkIQ bootstrap check failed: {exception.Message}"));
+                CreateSetupPlaceholder($"WorkICQ bootstrap check failed: {exception.Message}"));
         }
         catch (Exception exception)
         {
             WriteDiagnostic("bootstrap.error", exception.ToString());
             return new BootstrapSummary(
                 RuntimeSetupConnectionBadge,
-                $"WorkIQ bootstrap check failed unexpectedly: {exception.Message}",
+                $"WorkICQ bootstrap check failed unexpectedly: {exception.Message}",
                 false,
                 CreateWorkspacePlaceholder(),
-                CreateSetupPlaceholder($"WorkIQ bootstrap check failed unexpectedly: {exception.Message}"));
+                CreateSetupPlaceholder($"WorkICQ bootstrap check failed unexpectedly: {exception.Message}"));
         }
     }
 
@@ -497,7 +505,7 @@ public sealed class ChatShellService : IChatShellService
             if (builder.Length == 0)
             {
                 var fallbackResponse = requiresLiveWorkIq
-                    ? BuildBlockingResponse(prompt, $"The live WorkIQ stream ended before any answer arrived. {runtimeFailure.Message}", requiresLiveWorkIq: true)
+                    ? BuildBlockingResponse(prompt, $"The live WorkICQ stream ended before any answer arrived. {runtimeFailure.Message}", requiresLiveWorkIq: true)
                     : BuildBlockingResponse(prompt, $"The Copilot SDK stream ended before any answer arrived. {runtimeFailure.Message}", requiresLiveWorkIq: false);
 
                 WriteDiagnostic(
@@ -519,7 +527,7 @@ public sealed class ChatShellService : IChatShellService
             }
 
             var failureNote = requiresLiveWorkIq
-                ? $"{Environment.NewLine}{Environment.NewLine}_Live WorkIQ execution stopped early: {runtimeFailure.Message}_"
+                ? $"{Environment.NewLine}{Environment.NewLine}_Live WorkICQ execution stopped early: {runtimeFailure.Message}_"
                 : $"{Environment.NewLine}{Environment.NewLine}_Runtime stream ended early: {runtimeFailure.Message}_";
             builder.Append(failureNote);
             WriteDiagnostic("runtime.stream", $"Runtime stream ended early after {builder.Length} chars: {runtimeFailure.Message}");
@@ -538,7 +546,7 @@ public sealed class ChatShellService : IChatShellService
                     ? "Runtime finished without assistant content for a workplace/org turn. Returning a blocking error instead of placeholder content."
                     : "Runtime finished without assistant content. Returning a blocking error instead of local fallback content.");
             assistantContent = requiresLiveWorkIq
-                ? BuildBlockingResponse(prompt, "The live WorkIQ runtime finished without returning answer content.", requiresLiveWorkIq: true)
+                ? BuildBlockingResponse(prompt, "The live WorkICQ runtime finished without returning answer content.", requiresLiveWorkIq: true)
                 : BuildBlockingResponse(prompt, "The Copilot SDK runtime finished without returning answer content.", requiresLiveWorkIq: false);
             foreach (var chunk in StreamChunks(assistantContent))
             {
@@ -582,15 +590,17 @@ public sealed class ChatShellService : IChatShellService
 
             var activity = toolEvent.EventType switch
             {
-                ToolEventType.Started => FormatToolDisplayName(toolEvent.ToolName) == "WorkIQ"
-                    ? "Querying WorkIQ…"
+                ToolEventType.Started => FormatToolDisplayName(toolEvent.ToolName) == "WorkICQ"
+                    ? "Querying WorkICQ…"
                     : $"{FormatToolDisplayName(toolEvent.ToolName)} started",
+                ToolEventType.Progress when toolEvent.ToolName == "thinking"
+                    => TruncateThinking(toolEvent.StatusMessage ?? "Reasoning…"),
                 ToolEventType.Progress => toolEvent.StatusMessage ?? $"{FormatToolDisplayName(toolEvent.ToolName)} is still working",
-                ToolEventType.Completed => toolEvent.StatusMessage ?? $"{FormatToolDisplayName(toolEvent.ToolName)} returned data.",
-                ToolEventType.Failed => toolEvent.ErrorMessage ?? $"{FormatToolDisplayName(toolEvent.ToolName)} failed",
+                ToolEventType.Completed => string.Empty,
+                ToolEventType.Failed => string.Empty,
                 _ => toolEvent.StatusMessage ?? FormatToolDisplayName(toolEvent.ToolName)
             };
-            WriteDiagnostic("runtime.tool", $"{toolEvent.EventType}: {activity}");
+            WriteDiagnostic("runtime.tool", $"{toolEvent.EventType}: {FormatToolDisplayName(toolEvent.ToolName)}{(string.IsNullOrEmpty(activity) ? "" : $" — {activity}")}");
             yield return activity;
         }
 
@@ -610,7 +620,7 @@ public sealed class ChatShellService : IChatShellService
     {
         var resolvedReason = string.IsNullOrWhiteSpace(blockingReason)
             ? requiresLiveWorkIq
-                ? "The live WorkIQ path is not available yet."
+                ? "The live WorkICQ path is not available yet."
                 : "The live Copilot SDK path is not available yet."
             : blockingReason;
         var response = BuildBlockingResponse(prompt, resolvedReason, requiresLiveWorkIq);
@@ -660,7 +670,7 @@ public sealed class ChatShellService : IChatShellService
         var isUser = string.Equals(message.Role, "user", StringComparison.OrdinalIgnoreCase);
         return new ShellMessageSnapshot(
             isUser ? ChatRole.User : ChatRole.Assistant,
-            isUser ? "You" : "WorkIQ",
+            isUser ? "You" : "WorkICQ",
             message.Content,
             message.Timestamp.ToLocalTime());
     }
@@ -668,10 +678,10 @@ public sealed class ChatShellService : IChatShellService
     private static string BuildBlockingResponse(string prompt, string blockingReason, bool requiresLiveWorkIq)
     {
         var topic = BuildTitle(prompt);
-        var heading = requiresLiveWorkIq ? "## WorkIQ request blocked" : "## Runtime request blocked";
+        var heading = requiresLiveWorkIq ? "## WorkICQ request blocked" : "## Runtime request blocked";
         var route = requiresLiveWorkIq
-            ? "This workplace question must go through the live Copilot SDK + WorkIQ MCP path."
-            : "This prompt only runs through the live Copilot SDK path configured with the WorkIQ MCP server.";
+            ? "This workplace question must go through the live Copilot SDK + WorkICQ MCP path."
+            : "This prompt only runs through the live Copilot SDK path configured with the WorkICQ MCP server.";
         return
             $"{heading}\n\n" +
             $"I can't answer \"{topic}\" from local history, sample conversations, setup metadata, or placeholder content.\n" +
@@ -725,8 +735,17 @@ public sealed class ChatShellService : IChatShellService
             || string.Equals(toolName, WorkIQRuntimeDefaults.AcceptEulaToolName, StringComparison.OrdinalIgnoreCase)
             || string.Equals(toolName, "ask_work_iq", StringComparison.OrdinalIgnoreCase)
             || string.Equals(toolName, "accept_eula", StringComparison.OrdinalIgnoreCase)
-            ? "WorkIQ"
+            ? "WorkICQ"
             : toolName;
+
+    private static string TruncateThinking(string text)
+    {
+        const int maxLength = 80;
+        var singleLine = text.ReplaceLineEndings(" ").Trim();
+        return singleLine.Length <= maxLength
+            ? $"💭 {singleLine}"
+            : $"💭 {singleLine[..maxLength].TrimEnd()}…";
+    }
 
     private static void WriteDiagnostic(string stage, string message)
         => Trace.WriteLine($"[{DateTimeOffset.Now:O}] [WorkIQC.ChatShell] [{stage}] {message}");
@@ -753,10 +772,10 @@ public sealed class ChatShellService : IChatShellService
             WorkspacePath: StorageHelper.GetWorkspacePath(),
             McpConfigPath: StorageHelper.GetCopilotConfigPath(),
             EulaUrl: WorkIQRuntimeDefaults.EulaUrl,
-            EulaMarkerPath: Path.Combine(StorageHelper.GetWorkspacePath(), ".workiq", "eula-accepted.json"),
-            AuthenticationMarkerPath: Path.Combine(StorageHelper.GetWorkspacePath(), ".workiq", "auth-handoff.json"),
+            EulaMarkerPath: Path.Combine(StorageHelper.GetWorkspacePath(), ".WorkICQ", "eula-accepted.json"),
+            AuthenticationMarkerPath: Path.Combine(StorageHelper.GetWorkspacePath(), ".WorkICQ", "auth-handoff.json"),
             AuthenticationCommandLine: WorkIQRuntimeDefaults.CopilotLoginCommand,
-            Blockers: [summaryText],
+            Blockers: [new SetupCheckItem(summaryText, false)],
             Prerequisites: []);
 
     private static IAsyncEnumerable<string> EmptyActivityStream() => AsyncEnumerable.Empty<string>();

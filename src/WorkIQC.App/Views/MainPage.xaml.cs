@@ -3,6 +3,8 @@ using System.ComponentModel;
 using System.Diagnostics;
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml.Input;
+using Windows.Media.Core;
+using Windows.Media.Playback;
 using WorkIQC.App.Models;
 using WorkIQC.App.Services;
 using WorkIQC.App.ViewModels;
@@ -14,6 +16,7 @@ namespace WorkIQC.App.Views
     public sealed partial class MainPage : Page
     {
         private bool _isInitialized;
+        private MediaPlayer? _notificationPlayer;
 
         public MainPage(MainPageViewModel viewModel)
         {
@@ -21,6 +24,7 @@ namespace WorkIQC.App.Views
             ViewModel = viewModel;
             DataContext = ViewModel;
             ViewModel.Messages.CollectionChanged += OnMessagesChanged;
+            ViewModel.StreamCompleted += OnStreamCompleted;
             AttachMessageHandlers(ViewModel.Messages);
             ActualThemeChanged += OnActualThemeChanged;
         }
@@ -151,6 +155,25 @@ namespace WorkIQC.App.Views
         private void OnActualThemeChanged(FrameworkElement sender, object args)
             => ViewModel.RefreshTheme();
 
+        private void OnStreamCompleted(object? sender, EventArgs e)
+        {
+            try
+            {
+                var soundPath = Path.Combine(AppContext.BaseDirectory, "Assets", "icq-uh-oh.mp3");
+                _notificationPlayer?.Dispose();
+                _notificationPlayer = new MediaPlayer
+                {
+                    Source = MediaSource.CreateFromUri(new Uri(soundPath)),
+                    AudioCategory = MediaPlayerAudioCategory.Alerts
+                };
+                _notificationPlayer.Play();
+            }
+            catch
+            {
+                // Sound playback is best-effort
+            }
+        }
+
         private void OnMessagesListSizeChanged(object sender, SizeChangedEventArgs e)
             => ScheduleTranscriptRefresh();
 
@@ -176,16 +199,90 @@ namespace WorkIQC.App.Views
         }
 
         private async void OnAcceptWorkIqTermsClicked(object sender, RoutedEventArgs e)
-            => await ViewModel.AcceptWorkIqTermsAsync();
+        {
+            if (sender is Button button)
+            {
+                button.IsEnabled = false;
+                button.Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Children =
+                    {
+                        new ProgressRing { Width = 14, Height = 14, IsActive = true },
+                        new TextBlock { Text = "Completing consent…", VerticalAlignment = VerticalAlignment.Center }
+                    }
+                };
+            }
+
+            try
+            {
+                await ViewModel.AcceptWorkIqTermsAsync();
+            }
+            finally
+            {
+                if (sender is Button btn)
+                {
+                    btn.IsEnabled = true;
+                    btn.Content = "Complete consent bootstrap";
+                }
+            }
+        }
 
         private async void OnLaunchCopilotSignInClicked(object sender, RoutedEventArgs e)
         {
             LaunchCommandInTerminal(ViewModel.SetupAuthenticationCommandText);
-            await ViewModel.RecordAuthenticationHandoffAsync(ViewModel.SetupAuthenticationCommandText);
+
+            if (sender is Button button)
+            {
+                button.IsEnabled = false;
+                button.Content = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 8,
+                    Children =
+                    {
+                        new ProgressRing { Width = 14, Height = 14, IsActive = true },
+                        new TextBlock { Text = "Recording handoff…", VerticalAlignment = VerticalAlignment.Center }
+                    }
+                };
+            }
+
+            try
+            {
+                await ViewModel.RecordAuthenticationHandoffAsync(ViewModel.SetupAuthenticationCommandText);
+            }
+            finally
+            {
+                if (sender is Button btn)
+                {
+                    btn.IsEnabled = true;
+                    btn.Content = "Open sign-in bootstrap";
+                }
+            }
         }
 
         private async void OnRecheckSetupClicked(object sender, RoutedEventArgs e)
-            => await ViewModel.RefreshSetupAsync();
+        {
+            if (sender is Button button)
+            {
+                button.IsEnabled = false;
+                button.Content = "Rechecking…";
+            }
+
+            try
+            {
+                await ViewModel.RefreshSetupAsync();
+            }
+            finally
+            {
+                if (sender is Button btn)
+                {
+                    btn.IsEnabled = true;
+                    btn.Content = "Recheck bootstrap";
+                }
+            }
+        }
 
         private async void OnDeleteConversationClicked(object sender, RoutedEventArgs e)
         {
@@ -219,12 +316,51 @@ namespace WorkIQC.App.Views
             SyncSidebarSelection();
         }
 
+        private void OnCopyMessageClicked(object sender, RoutedEventArgs e)
+        {
+            if (sender is not FrameworkElement { Tag: ChatMessageViewModel message })
+            {
+                return;
+            }
+
+            var content = message.Content;
+
+            // Strip follow-up suggestions below the last horizontal rule (---, ***, ___)
+            var lastHrIndex = FindLastHorizontalRule(content);
+            if (lastHrIndex >= 0)
+            {
+                content = content[..lastHrIndex].TrimEnd();
+            }
+
+            var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
+            dataPackage.SetText(content);
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
+        }
+
+        private static int FindLastHorizontalRule(string text)
+        {
+            var lines = text.Split('\n');
+            for (var i = lines.Length - 1; i >= 0; i--)
+            {
+                var trimmed = lines[i].Trim();
+                if (trimmed.Length >= 3
+                    && (trimmed.Replace("-", "") == ""
+                        || trimmed.Replace("*", "") == ""
+                        || trimmed.Replace("_", "") == ""))
+                {
+                    return text.IndexOf(lines[i], StringComparison.Ordinal);
+                }
+            }
+
+            return -1;
+        }
+
         private async Task ShowSetupDialogAsync()
         {
             var dialog = new ContentDialog
             {
                 XamlRoot = XamlRoot,
-                Title = "Complete WorkIQ bootstrap",
+                Title = "Complete WorkICQ bootstrap",
                 CloseButtonText = "Continue in preview",
                 DefaultButton = ContentDialogButton.Close,
                 Content = new StackPanel
@@ -234,7 +370,7 @@ namespace WorkIQC.App.Views
                     {
                         new TextBlock
                         {
-                            Text = "Before the first live WorkIQ session, complete WorkIQ consent and launch Copilot sign-in from the app-owned bootstrap card in Settings.",
+                            Text = "Before the first live WorkICQ session, complete WorkICQ consent and launch Copilot sign-in from the app-owned bootstrap card in Settings.",
                             TextWrapping = TextWrapping.Wrap,
                             MaxWidth = 520
                         },

@@ -38,7 +38,7 @@ public sealed class ChatShellServiceTests
 
         Assert.AreEqual("Bootstrap ready", state.ConnectionBadgeText);
         StringAssert.Contains(state.SidebarFooterText, "Saved conversations reopen from local history");
-        StringAssert.Contains(state.SidebarFooterText, "the next send can create or resume a live WorkIQ-backed session");
+        StringAssert.Contains(state.SidebarFooterText, "the next send can create or resume a live WorkICQ-backed session");
         Assert.IsFalse(state.SetupState.RequiresUserAction);
     }
 
@@ -51,7 +51,7 @@ public sealed class ChatShellServiceTests
         var state = await fixture.Service.LoadShellAsync();
 
         Assert.AreEqual("Local history", state.ConnectionBadgeText);
-        StringAssert.Contains(state.SidebarFooterText, "WorkIQ bootstrap check failed: bootstrap exploded");
+        StringAssert.Contains(state.SidebarFooterText, "WorkICQ bootstrap check failed: bootstrap exploded");
     }
 
     [TestMethod]
@@ -162,10 +162,10 @@ public sealed class ChatShellServiceTests
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(response.ConversationId);
 
-        Assert.AreEqual("WorkIQ blocked", response.ConnectionBadgeText);
-        StringAssert.Contains(response.SidebarFooterText, "requires a live WorkIQ call");
+        Assert.AreEqual("WorkICQ blocked", response.ConnectionBadgeText);
+        StringAssert.Contains(response.SidebarFooterText, "requires a live WorkICQ call");
         StringAssert.Contains(response.SidebarFooterText, "Copilot CLI missing.");
-        StringAssert.Contains(assistant, "## WorkIQ request blocked");
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
         StringAssert.Contains(assistant, "direct reports");
         Assert.IsFalse(assistant.Contains("## Placeholder response for", StringComparison.Ordinal));
         Assert.AreEqual(0, fixture.SessionCoordinator.CreateSessionCallCount);
@@ -227,7 +227,7 @@ public sealed class ChatShellServiceTests
         var conversation = await fixture.CreateConversationAsync("Org lookup");
         fixture.SessionCoordinator.OnCreateSessionAsync = (_, _) => Task.FromResult("live-session");
         fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
-            Task.FromResult(new SendMessageResponse { SessionId = "live-session", MessageId = "message-workiq" });
+            Task.FromResult(new SendMessageResponse { SessionId = "live-session", MessageId = "message-WorkICQ" });
         fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream("- Sam Carter", "\n- Priya Patel");
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
@@ -237,7 +237,7 @@ public sealed class ChatShellServiceTests
             SessionId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
-        Assert.AreEqual("WorkIQ runtime", response.ConnectionBadgeText);
+        Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
         Assert.AreEqual(1, fixture.SessionCoordinator.CreateSessionCallCount);
         Assert.HasCount(1, fixture.MessageOrchestrator.SendRequests);
         Assert.AreEqual("Who are my direct reports?", fixture.MessageOrchestrator.SendRequests.Single().UserMessage);
@@ -250,7 +250,7 @@ public sealed class ChatShellServiceTests
         await using var fixture = await ChatShellServiceFixture.CreateAsync();
         var conversation = await fixture.CreateConversationAsync("Live handoff");
         SessionConfiguration? capturedConfig = null;
-        fixture.Bootstrap.WorkspaceResult = CreateWorkspace("@microsoft/workiq");
+        fixture.Bootstrap.WorkspaceResult = CreateWorkspace("@microsoft/WorkICQ");
         fixture.SessionCoordinator.OnCreateSessionAsync = (config, _) =>
         {
             capturedConfig = config;
@@ -268,9 +268,9 @@ public sealed class ChatShellServiceTests
         var assistant = await ReadAllAsync(response.ResponseStream);
 
         Assert.AreEqual("resolved-session", response.SessionId);
-        Assert.AreEqual("WorkIQ runtime", response.ConnectionBadgeText);
+        Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
         Assert.AreEqual("First second", assistant);
-        StringAssert.Contains(response.SidebarFooterText, "active reply is coming from the WorkIQ runtime");
+        StringAssert.Contains(response.SidebarFooterText, "active reply is coming from the WorkICQ runtime");
         Assert.AreEqual(1, fixture.SessionCoordinator.CreateSessionCallCount);
         Assert.AreEqual(0, fixture.SessionCoordinator.ResumeSessionCallCount);
         Assert.IsNotNull(capturedConfig);
@@ -280,10 +280,10 @@ public sealed class ChatShellServiceTests
             "The app name WorkIQC identifies the desktop shell only. It is not a knowledge source.",
             capturedConfig.SystemGuidance["app-identity"]);
         StringAssert.Contains(capturedConfig.SystemGuidance["answer-sources"], "Never answer from local history");
-        Assert.AreEqual("WorkIQ-first", capturedConfig.SystemGuidance["tool-posture"]);
-        StringAssert.Contains(capturedConfig.SystemGuidance["current-user"], "currently authenticated Copilot/WorkIQ user");
-        StringAssert.Contains(capturedConfig.SystemGuidance["principal-resolution"], "Only ask the user for their own name or work email if the WorkIQ tool explicitly reports");
-        StringAssert.Contains(capturedConfig.SystemGuidance["eula-recovery"], "complete the WorkIQ consent bootstrap in Settings");
+        Assert.AreEqual("WorkICQ-first", capturedConfig.SystemGuidance["tool-posture"]);
+        StringAssert.Contains(capturedConfig.SystemGuidance["current-user"], "currently authenticated Copilot/WorkICQ user");
+        StringAssert.Contains(capturedConfig.SystemGuidance["principal-resolution"], "Only ask the user for their own name or work email if the WorkICQ tool explicitly reports");
+        StringAssert.Contains(capturedConfig.SystemGuidance["eula-recovery"], "complete the WorkICQ consent bootstrap in Settings");
         StringAssert.Contains(capturedConfig.SystemGuidance["allowed-tools"], "ask_work_iq");
         CollectionAssert.AreEqual(new[] { "*" }, capturedConfig.AllowedTools.ToArray());
         Assert.AreEqual("resolved-session", await fixture.GetSessionIdAsync(conversation.Id));
@@ -297,7 +297,7 @@ public sealed class ChatShellServiceTests
         {
             Status = EulaAcceptanceStatus.ActionRequired,
             MarkerPath = Path.Combine(Path.GetTempPath(), "workiqc-tests", "eula-accepted.json"),
-            Resolution = "Complete the WorkIQ consent bootstrap from Settings so the app can verify consent."
+            Resolution = "Complete the WorkICQ consent bootstrap from Settings so the app can verify consent."
         };
         fixture.Bootstrap.AuthenticationReport = new AuthenticationHandoffReport
         {
@@ -311,7 +311,7 @@ public sealed class ChatShellServiceTests
 
         Assert.IsTrue(state.SetupState.RequiresUserAction);
         StringAssert.Contains(state.SetupState.AuthenticationCommandLine, "copilot login");
-        StringAssert.Contains(state.SetupState.Blockers[0], "WorkIQ consent bootstrap");
+        StringAssert.Contains(state.SetupState.Blockers[0].Text, "WorkICQ consent bootstrap");
     }
 
     [TestMethod]
@@ -336,7 +336,7 @@ public sealed class ChatShellServiceTests
         Assert.IsTrue(afterEula.IsEulaAccepted);
         Assert.IsTrue(afterAuth.IsAuthenticationHandoffStarted);
         Assert.AreEqual(1, fixture.Bootstrap.AcceptEulaCallCount);
-        StringAssert.Contains(afterAuth.Prerequisites.Single(item => item.StartsWith("copilot.auth:", StringComparison.Ordinal)), "Copilot sign-in handoff was recorded");
+        StringAssert.Contains(afterAuth.Prerequisites.Single(item => item.Text.StartsWith("copilot.auth:", StringComparison.Ordinal)).Text, "Copilot sign-in handoff was recorded");
     }
 
     [TestMethod]
@@ -348,16 +348,16 @@ public sealed class ChatShellServiceTests
             Status = AuthenticationHandoffStatus.Completed,
             MarkerPath = Path.Combine(Path.GetTempPath(), "workiqc-tests", "auth-handoff.json"),
             LoginCommand = "copilot login",
-            Details = "Copilot sign-in handoff was recorded via 'copilot login' (recorded 3/14/2026 9:41 AM). This does not verify that the live WorkIQ session can resolve the signed-in principal. Evidence is stored at 'auth-handoff.json'."
+            Details = "Copilot sign-in handoff was recorded via 'copilot login' (recorded 3/14/2026 9:41 AM). This does not verify that the live WorkICQ session can resolve the signed-in principal. Evidence is stored at 'auth-handoff.json'."
         };
 
         var state = await fixture.Service.LoadShellAsync();
 
         Assert.IsFalse(state.SetupState.RequiresUserAction);
         StringAssert.Contains(
-            state.SetupState.Prerequisites.Single(item => item.StartsWith("copilot.auth:", StringComparison.Ordinal)),
+            state.SetupState.Prerequisites.Single(item => item.Text.StartsWith("copilot.auth:", StringComparison.Ordinal)).Text,
             "Copilot sign-in handoff was recorded");
-        StringAssert.Contains(state.SetupState.SummaryText, "WorkIQ bootstrap is ready.");
+        StringAssert.Contains(state.SetupState.SummaryText, "WorkICQ bootstrap is ready.");
     }
 
     [TestMethod]
@@ -408,10 +408,10 @@ public sealed class ChatShellServiceTests
             SessionId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
-        Assert.AreEqual("WorkIQ blocked", response.ConnectionBadgeText);
-        StringAssert.Contains(response.SidebarFooterText, "live WorkIQ handoff failed before the request could run");
+        Assert.AreEqual("WorkICQ blocked", response.ConnectionBadgeText);
+        StringAssert.Contains(response.SidebarFooterText, "live WorkICQ handoff failed before the request could run");
         StringAssert.Contains(response.SidebarFooterText, "Gateway timeout");
-        StringAssert.Contains(assistant, "## WorkIQ request blocked");
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
         Assert.IsFalse(assistant.Contains("## Placeholder response for", StringComparison.Ordinal));
     }
 
@@ -457,8 +457,8 @@ public sealed class ChatShellServiceTests
             SessionId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
-        Assert.AreEqual("WorkIQ runtime", response.ConnectionBadgeText);
-        StringAssert.Contains(assistant, "## WorkIQ request blocked");
+        Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
         StringAssert.Contains(assistant, "finished without returning answer content");
         Assert.IsFalse(assistant.Contains("## Placeholder response for", StringComparison.Ordinal));
     }
@@ -529,7 +529,7 @@ public sealed class ChatShellServiceTests
             ]
         };
 
-    private static WorkspaceInitializationResult CreateWorkspace(string packageReference = "@microsoft/workiq")
+    private static WorkspaceInitializationResult CreateWorkspace(string packageReference = "@microsoft/WorkICQ")
     {
         var workspaceRoot = Path.Combine(Path.GetTempPath(), "workiqc-tests", Guid.NewGuid().ToString("N"));
         var copilotPath = Path.Combine(workspaceRoot, ".copilot");
@@ -559,7 +559,7 @@ public sealed class ChatShellServiceTests
             Status = AuthenticationHandoffStatus.Completed,
             MarkerPath = Path.Combine(Path.GetTempPath(), "workiqc-tests", "auth-handoff.json"),
             LoginCommand = "copilot login",
-            Details = "Copilot sign-in handoff was recorded via 'copilot login'. This does not verify that the live WorkIQ session can resolve the signed-in principal."
+            Details = "Copilot sign-in handoff was recorded via 'copilot login'. This does not verify that the live WorkICQ session can resolve the signed-in principal."
         };
 
     private static async Task<string> ReadAllAsync(IAsyncEnumerable<string> stream, CancellationToken cancellationToken = default)
@@ -694,7 +694,7 @@ public sealed class ChatShellServiceTests
     {
         public RuntimeReadinessReport RuntimeDependenciesReport { get; set; } = CreateReadyReport("runtime-prerequisites");
 
-        public RuntimeReadinessReport WorkIQReport { get; set; } = CreateReadyReport("workiq-prerequisites");
+        public RuntimeReadinessReport WorkICQReport { get; set; } = CreateReadyReport("WorkICQ-prerequisites");
 
         public WorkspaceInitializationResult WorkspaceResult { get; set; } = CreateWorkspace();
 
@@ -704,7 +704,7 @@ public sealed class ChatShellServiceTests
 
         public Exception? RuntimeDependenciesException { get; set; }
 
-        public Exception? WorkIQException { get; set; }
+        public Exception? WorkICQException { get; set; }
 
         public Exception? InitializeWorkspaceException { get; set; }
 
@@ -728,12 +728,12 @@ public sealed class ChatShellServiceTests
         public Task<RuntimeReadinessReport> EnsureWorkIQAvailableAsync(string? version = null, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (WorkIQException is not null)
+            if (WorkICQException is not null)
             {
-                throw WorkIQException;
+                throw WorkICQException;
             }
 
-            return Task.FromResult(WorkIQReport);
+            return Task.FromResult(WorkICQReport);
         }
 
         public Task<WorkspaceInitializationResult> InitializeWorkspaceAsync(string? workspacePath = null, string? version = null, CancellationToken cancellationToken = default)

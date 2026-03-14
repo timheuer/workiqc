@@ -14,6 +14,7 @@
                   Height="1"
                   MinHeight="1"
                   MinWidth="240"
+                  IsHitTestVisible="False"
                   Visibility="Collapsed" />
 
         <TextBlock x:Name="FallbackTextBlock"

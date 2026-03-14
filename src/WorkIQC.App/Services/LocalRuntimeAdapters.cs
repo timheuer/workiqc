@@ -37,7 +37,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         var node = ProbeDependency(
             "Node.js",
             NodeCommandCandidates,
-            "Install Node.js so the WorkIQ MCP server can run through npx.");
+            "Install Node.js so the WorkICQ MCP server can run through npx.");
         var npm = ProbeDependency(
             "npm",
             NpmCommandCandidates,
@@ -45,7 +45,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         var npx = ProbeDependency(
             "npx",
             NpxCommandCandidates,
-            "Expose npx on PATH so the runtime can launch the WorkIQ MCP package.");
+            "Expose npx on PATH so the runtime can launch the WorkICQ MCP package.");
 
         return Task.FromResult(new RuntimeReadinessReport
         {
@@ -72,11 +72,11 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
                 },
                 new RuntimeCapability
                 {
-                    Name = "workiq.mcp-launch",
+                    Name = "WorkICQ.mcp-launch",
                     Status = node.IsAvailable && npx.IsAvailable ? RuntimeCapabilityStatus.Available : RuntimeCapabilityStatus.ActionRequired,
                     Details = node.IsAvailable && npx.IsAvailable
-                        ? "Node.js and npx are available for launching the WorkIQ MCP server."
-                        : "WorkIQ cannot be launched until both Node.js and npx are discoverable.",
+                        ? "Node.js and npx are available for launching the WorkICQ MCP server."
+                        : "WorkICQ cannot be launched until both Node.js and npx are discoverable.",
                     Resolution = node.IsAvailable && npx.IsAvailable
                         ? null
                         : "Install Node.js and ensure both node and npx are on PATH."
@@ -92,36 +92,36 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         var node = ProbeDependency(
             "Node.js",
             NodeCommandCandidates,
-            "Install Node.js so WorkIQ can be launched via npx.");
+            "Install Node.js so WorkICQ can be launched via npx.");
         var npx = ProbeDependency(
             "npx",
             NpxCommandCandidates,
-            "Expose npx on PATH so the WorkIQ package can be executed.");
+            "Expose npx on PATH so the WorkICQ package can be executed.");
         var packageReference = BuildPackageReference(version);
 
         return Task.FromResult(new RuntimeReadinessReport
         {
-            Subject = "workiq-prerequisites",
+            Subject = "WorkICQ-prerequisites",
             RequestedVersion = version,
             Dependencies = [node, npx],
             Capabilities =
             [
                 new RuntimeCapability
                 {
-                    Name = "workiq.package.runner",
+                    Name = "WorkICQ.package.runner",
                     Status = node.IsAvailable && npx.IsAvailable ? RuntimeCapabilityStatus.Available : RuntimeCapabilityStatus.ActionRequired,
                     Details = node.IsAvailable && npx.IsAvailable
-                        ? $"WorkIQ package '{packageReference}' can be launched through '{BuildMcpLaunchDescription(packageReference)}'."
-                        : "The runtime can describe the WorkIQ package, but it cannot launch it yet because node and/or npx are missing.",
+                        ? $"WorkICQ package '{packageReference}' can be launched through '{BuildMcpLaunchDescription(packageReference)}'."
+                        : "The runtime can describe the WorkICQ package, but it cannot launch it yet because node and/or npx are missing.",
                     Resolution = node.IsAvailable && npx.IsAvailable
                         ? null
-                        : "Install Node.js and ensure npx resolves before enabling WorkIQ-backed chats."
+                        : "Install Node.js and ensure npx resolves before enabling WorkICQ-backed chats."
                 },
                 new RuntimeCapability
                 {
-                    Name = "workiq.package-resolution",
+                    Name = "WorkICQ.package-resolution",
                     Status = RuntimeCapabilityStatus.Available,
-                    Details = $"mcp-config.json will launch the latest WorkIQ package reference '{packageReference}'.",
+                    Details = $"mcp-config.json will launch the latest WorkICQ package reference '{packageReference}'.",
                     Resolution = null
                 }
             ]
@@ -142,7 +142,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
             {
                 mcpServers = new Dictionary<string, object>
                 {
-                    ["workiq"] = new
+                    ["WorkICQ"] = new
                     {
                         command,
                         args
@@ -210,7 +210,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         if (!workIqAvailability.IsReady)
         {
             throw new BootstrapException(
-                "WorkIQ EULA acceptance could not start because the native WorkIQ bootstrap command is not available yet.",
+                "WorkICQ EULA acceptance could not start because the native WorkICQ bootstrap command is not available yet.",
                 errorCode: "runtime.bootstrap.eula-bootstrap-unavailable");
         }
 
@@ -218,7 +218,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         await PersistVerifiedEulaMarkerAsync(workspace, outcome, cancellationToken).ConfigureAwait(false);
         WriteDiagnostic(
             "eula.accept",
-            $"Native WorkIQ EULA bootstrap completed through '{outcome.EvidenceName}' for workspace '{workspace.WorkspacePath}'.");
+            $"Native WorkICQ EULA bootstrap completed through '{outcome.EvidenceName}' for workspace '{workspace.WorkspacePath}'.");
         return await VerifyEulaAcceptanceAsync(cancellationToken).ConfigureAwait(false);
     }
 
@@ -231,7 +231,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         var loginCommand = BuildCopilotLoginCommand();
         var details = started
             ? BuildAuthenticationReadyDetails(markerPath, loginCommand)
-            : $"Launch '{loginCommand}' from the bootstrap card before attempting the first live WorkIQ session.";
+            : $"Launch '{loginCommand}' from the bootstrap card before attempting the first live WorkICQ session.";
         WriteDiagnostic("auth.verify", started ? $"Authentication handoff marker found at '{markerPath}'." : $"Authentication handoff marker missing at '{markerPath}'.");
 
         return Task.FromResult(new AuthenticationHandoffReport
@@ -241,7 +241,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
             LoginCommand = loginCommand,
             Details = details,
             Resolution = started
-                ? "Use recheck if Copilot sign-in changes, expires, or WorkIQ cannot resolve the current user."
+                ? "Use recheck if Copilot sign-in changes, expires, or WorkICQ cannot resolve the current user."
                 : $"Use the bootstrap card to launch '{loginCommand}', then retry once sign-in completes."
         });
     }
@@ -274,19 +274,19 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         try
         {
             var processStartInfo = CreateEulaBootstrapProcessStartInfo(workspace.WorkIQPackageReference, out var commandDisplay);
-            WriteDiagnostic("eula.bootstrap.start", $"Launching native WorkIQ bootstrap command '{commandDisplay}'.");
+            WriteDiagnostic("eula.bootstrap.start", $"Launching native WorkICQ bootstrap command '{commandDisplay}'.");
 
             var execution = await ExternalProcessRunner.RunAsync(processStartInfo, "y" + Environment.NewLine, cancellationToken).ConfigureAwait(false);
             if (execution.ExitCode != 0)
             {
                 throw new BootstrapException(
-                    $"The native WorkIQ EULA bootstrap command failed with exit code {execution.ExitCode}. Output: {execution.CombinedOutput}",
+                    $"The native WorkICQ EULA bootstrap command failed with exit code {execution.ExitCode}. Output: {execution.CombinedOutput}",
                     errorCode: "runtime.bootstrap.eula-bootstrap-failed");
             }
 
             WriteDiagnostic(
                 "eula.bootstrap.complete",
-                $"Native WorkIQ bootstrap command '{commandDisplay}' completed successfully.");
+                $"Native WorkICQ bootstrap command '{commandDisplay}' completed successfully.");
 
             return new EulaAcceptanceOutcome(
                 commandDisplay,
@@ -297,7 +297,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         catch (Exception exception) when (exception is not BootstrapException and not OperationCanceledException)
         {
             throw new BootstrapException(
-                "Native WorkIQ EULA bootstrap failed before a chat session could start.",
+                "Native WorkICQ EULA bootstrap failed before a chat session could start.",
                 exception,
                 errorCode: "runtime.bootstrap.eula-bootstrap-failed");
         }
@@ -329,7 +329,7 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
         });
 
         await File.WriteAllTextAsync(markerPath, payload, cancellationToken).ConfigureAwait(false);
-        WriteDiagnostic("eula.persist", $"Recorded verified WorkIQ EULA bootstrap evidence at '{markerPath}'.");
+        WriteDiagnostic("eula.persist", $"Recorded verified WorkICQ EULA bootstrap evidence at '{markerPath}'.");
     }
 
     private static DependencyCheckResult ProbeDependency(string name, IReadOnlyList<string> commandCandidates, string missingDetails)
@@ -400,10 +400,10 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
     }
 
     private static string GetEulaMarkerPath()
-        => Path.Combine(StorageHelper.GetWorkspacePath(), ".workiq", "eula-accepted.json");
+        => Path.Combine(StorageHelper.GetWorkspacePath(), ".WorkICQ", "eula-accepted.json");
 
     private static string GetAuthenticationMarkerPath()
-        => Path.Combine(StorageHelper.GetWorkspacePath(), ".workiq", "auth-handoff.json");
+        => Path.Combine(StorageHelper.GetWorkspacePath(), ".WorkICQ", "auth-handoff.json");
 
     private static string BuildPackageReference(string? version)
         => WorkIQRuntimeDefaults.PackageReference;
@@ -420,14 +420,14 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
     {
         if (!TryReadAuthenticationMarker(markerPath, out var launchedAt, out var recordedLoginCommand))
         {
-            return $"Copilot sign-in handoff was recorded locally. This does not verify that the live WorkIQ session can resolve the signed-in principal. Evidence is stored at '{markerPath}'.";
+            return $"Copilot sign-in handoff was recorded locally. This does not verify that the live WorkICQ session can resolve the signed-in principal. Evidence is stored at '{markerPath}'.";
         }
 
         var command = string.IsNullOrWhiteSpace(recordedLoginCommand) ? fallbackLoginCommand : recordedLoginCommand;
         var timestamp = launchedAt?.ToLocalTime().ToString("g");
         return timestamp is null
-            ? $"Copilot sign-in handoff was recorded via '{command}'. This does not verify that the live WorkIQ session can resolve the signed-in principal. Evidence is stored at '{markerPath}'."
-            : $"Copilot sign-in handoff was recorded via '{command}' (recorded {timestamp}). This does not verify that the live WorkIQ session can resolve the signed-in principal. Evidence is stored at '{markerPath}'.";
+            ? $"Copilot sign-in handoff was recorded via '{command}'. This does not verify that the live WorkICQ session can resolve the signed-in principal. Evidence is stored at '{markerPath}'."
+            : $"Copilot sign-in handoff was recorded via '{command}' (recorded {timestamp}). This does not verify that the live WorkICQ session can resolve the signed-in principal. Evidence is stored at '{markerPath}'.";
     }
 
     private static bool TryReadAuthenticationMarker(string markerPath, out DateTimeOffset? launchedAt, out string? loginCommand)
@@ -468,8 +468,8 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
             return new EulaMarkerVerification(
                 CanProceed: false,
                 DiagnosticsMessage: $"Marker missing at '{markerPath}'.",
-                Details: "No verified WorkIQ consent record was found, so the app cannot treat WorkIQ bootstrap as complete for first use.",
-                Resolution: $"Complete the WorkIQ consent bootstrap from Settings so the app can run the native 'accept-eula' command and persist evidence at '{markerPath}'.");
+                Details: "No verified WorkICQ consent record was found, so the app cannot treat WorkICQ bootstrap as complete for first use.",
+                Resolution: $"Complete the WorkICQ consent bootstrap from Settings so the app can run the native 'accept-eula' command and persist evidence at '{markerPath}'.");
         }
 
         if (!TryReadAcceptedEulaMarker(markerPath, out var acceptedAt, out var evidenceSummary))
@@ -477,20 +477,20 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
             return new EulaMarkerVerification(
                 CanProceed: false,
                 DiagnosticsMessage: $"Unverified or unreadable marker found at '{markerPath}'.",
-                Details: "A local WorkIQ consent record exists, but it was not backed by verified bootstrap or live MCP evidence.",
-                Resolution: $"Re-run the WorkIQ consent bootstrap from Settings so the app can refresh '{markerPath}' with verified consent evidence.");
+                Details: "A local WorkICQ consent record exists, but it was not backed by verified bootstrap or live MCP evidence.",
+                Resolution: $"Re-run the WorkICQ consent bootstrap from Settings so the app can refresh '{markerPath}' with verified consent evidence.");
         }
 
         var timestamp = acceptedAt?.ToLocalTime().ToString("g");
         var details = timestamp is null
-            ? $"WorkIQ consent was verified during bootstrap through '{evidenceSummary}' and recorded at '{markerPath}'."
-            : $"WorkIQ consent was verified during bootstrap through '{evidenceSummary}' (recorded {timestamp}) and stored at '{markerPath}'.";
+            ? $"WorkICQ consent was verified during bootstrap through '{evidenceSummary}' and recorded at '{markerPath}'."
+            : $"WorkICQ consent was verified during bootstrap through '{evidenceSummary}' (recorded {timestamp}) and stored at '{markerPath}'.";
 
         return new EulaMarkerVerification(
             CanProceed: true,
-            DiagnosticsMessage: $"Verified WorkIQ consent marker at '{markerPath}'.",
+            DiagnosticsMessage: $"Verified WorkICQ consent marker at '{markerPath}'.",
             Details: details,
-            Resolution: "Re-run the WorkIQ consent bootstrap if WorkIQ later reports that consent is missing.");
+            Resolution: "Re-run the WorkICQ consent bootstrap if WorkICQ later reports that consent is missing.");
     }
 
     private static bool TryReadAcceptedEulaMarker(string markerPath, out DateTimeOffset? acceptedAt, out string? evidenceSummary)

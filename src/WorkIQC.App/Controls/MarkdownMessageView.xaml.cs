@@ -34,6 +34,7 @@ public sealed partial class MarkdownMessageView : UserControl
     private string? _lastRenderedHtml;
     private Task? _initializeTask;
     private Exception? _initializationFailure;
+    private int _initRetryCount;
 
     public MarkdownMessageView()
     {
@@ -149,7 +150,15 @@ public sealed partial class MarkdownMessageView : UserControl
     }
 
     private Task EnsureWebViewAsync()
-        => _initializeTask ??= EnsureWebViewCoreAsync();
+    {
+        if (_initializationFailure is not null && _initRetryCount < 3)
+        {
+            _initializationFailure = null;
+            _initializeTask = null;
+        }
+
+        return _initializeTask ??= EnsureWebViewCoreAsync();
+    }
 
     private async Task EnsureWebViewCoreAsync()
     {
@@ -172,6 +181,7 @@ public sealed partial class MarkdownMessageView : UserControl
         catch (Exception exception)
         {
             _initializationFailure = exception;
+            _initRetryCount++;
         }
     }
 
@@ -196,7 +206,8 @@ public sealed partial class MarkdownMessageView : UserControl
         }
         catch
         {
-            ShowFallback();
+            // Transient script failure — keep the WebView2 visible with current height
+            // rather than permanently switching to raw-text fallback.
         }
     }
 

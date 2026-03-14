@@ -21,8 +21,10 @@ public sealed record ShellSetupState(
     string EulaMarkerPath,
     string AuthenticationMarkerPath,
     string AuthenticationCommandLine,
-    IReadOnlyList<string> Blockers,
-    IReadOnlyList<string> Prerequisites);
+    IReadOnlyList<SetupCheckItem> Blockers,
+    IReadOnlyList<SetupCheckItem> Prerequisites);
+
+public sealed record SetupCheckItem(string Text, bool IsOk);
 
 public sealed record ShellConversationSnapshot(
     string Id,

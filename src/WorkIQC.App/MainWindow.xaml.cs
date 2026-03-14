@@ -12,7 +12,7 @@ namespace WorkIQC.App
         public MainWindow()
         {
             InitializeComponent();
-            Title = "WorkIQ";
+            Title = "WorkICQ";
             ExtendsContentIntoTitleBar = true;
 
             // Apply Mica backdrop for the modern Fluent aesthetic

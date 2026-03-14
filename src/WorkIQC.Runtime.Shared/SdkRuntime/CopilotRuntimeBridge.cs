@@ -488,6 +488,21 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
 
         public void ResetForToolExecution()
         {
+            if (_bufferedAssistantContent.Length > 0)
+            {
+                var thinkingText = _bufferedAssistantContent.ToString().Trim();
+                if (thinkingText.Length > 0)
+                {
+                    TryWriteToolEvent(new ToolEvent
+                    {
+                        ToolName = "thinking",
+                        EventType = ToolEventType.Progress,
+                        StatusMessage = thinkingText,
+                        Timestamp = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+
             _bufferedAssistantContent.Clear();
             FinalAssistantContent = null;
         }

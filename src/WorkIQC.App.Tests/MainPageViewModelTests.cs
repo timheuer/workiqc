@@ -26,13 +26,13 @@ public sealed class MainPageViewModelTests
                 DateTime.Now.AddMinutes(-5),
                 "Latest answer",
                 new ShellMessageSnapshot(ChatRole.User, "You", "Question", DateTime.Now.AddMinutes(-6)),
-                new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Latest answer", DateTime.Now.AddMinutes(-5))),
+                new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Latest answer", DateTime.Now.AddMinutes(-5))),
             CreateConversation(
                 "thread-2",
                 "Older thread",
                 DateTime.Now.AddHours(-1),
                 "Earlier preview",
-                new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Earlier preview", DateTime.Now.AddHours(-1))));
+                new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Earlier preview", DateTime.Now.AddHours(-1))));
         var service = new FakeChatShellService(shellState);
         var viewModel = new MainPageViewModel(service);
 
@@ -63,13 +63,13 @@ public sealed class MainPageViewModelTests
             "Newest thread",
             DateTime.Now.AddMinutes(-5),
             "Latest answer",
-            new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Latest answer", DateTime.Now.AddMinutes(-5)));
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Latest answer", DateTime.Now.AddMinutes(-5)));
         var older = CreateConversation(
             "thread-2",
             "Older thread",
             DateTime.Now.AddHours(-1),
             "Earlier preview",
-            new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Earlier preview", DateTime.Now.AddHours(-1)));
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Earlier preview", DateTime.Now.AddHours(-1)));
         var viewModel = new MainPageViewModel(new FakeChatShellService(CreateShellState(newest, older)));
 
         await viewModel.InitializeAsync();
@@ -92,13 +92,13 @@ public sealed class MainPageViewModelTests
             "Newest thread",
             DateTime.Now.AddMinutes(-5),
             "Latest answer",
-            new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Latest answer", DateTime.Now.AddMinutes(-5)));
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Latest answer", DateTime.Now.AddMinutes(-5)));
         var older = CreateConversation(
             "thread-2",
             "Older thread",
             DateTime.Now.AddHours(-1),
             "Earlier preview",
-            new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Earlier preview", DateTime.Now.AddHours(-1)));
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Earlier preview", DateTime.Now.AddHours(-1)));
         var service = new FakeChatShellService(CreateShellState(newest, older));
         var viewModel = new MainPageViewModel(service);
 
@@ -120,7 +120,7 @@ public sealed class MainPageViewModelTests
             "Only thread",
             DateTime.Now.AddMinutes(-5),
             "Lonely preview",
-            new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Lonely preview", DateTime.Now.AddMinutes(-5)));
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Lonely preview", DateTime.Now.AddMinutes(-5)));
         var service = new FakeChatShellService(CreateShellState(onlyConversation));
         var viewModel = new MainPageViewModel(service);
 
@@ -152,7 +152,7 @@ public sealed class MainPageViewModelTests
 
         await viewModel.InitializeAsync();
 
-        StringAssert.Contains(viewModel.EulaStepDescription, "Verified during WorkIQ bootstrap");
+        StringAssert.Contains(viewModel.EulaStepDescription, "Verified during WorkICQ bootstrap");
     }
 
     [TestMethod]
@@ -163,32 +163,32 @@ public sealed class MainPageViewModelTests
             CanAttemptRuntime: false,
             IsEulaAccepted: false,
             IsAuthenticationHandoffStarted: false,
-            SummaryText: "WorkIQ bootstrap still needs attention before the next live session: consent is required.",
-            WorkIQPackageReference: "@microsoft/workiq",
+            SummaryText: "WorkICQ bootstrap still needs attention before the next live session: consent is required.",
+            WorkIQPackageReference: "@microsoft/WorkICQ",
             WorkspacePath: "C:\\WorkIQC",
             McpConfigPath: "C:\\WorkIQC\\.copilot\\mcp-config.json",
             EulaUrl: "https://github.com/microsoft/work-iq-mcp",
             EulaMarkerPath: "C:\\WorkIQC\\eula.json",
             AuthenticationMarkerPath: "C:\\WorkIQC\\auth.json",
             AuthenticationCommandLine: "copilot login",
-            Blockers: ["Consent is required."],
-            Prerequisites: Array.Empty<string>());
+            Blockers: [new SetupCheckItem("Consent is required.", false)],
+            Prerequisites: Array.Empty<SetupCheckItem>());
         var viewModel = new MainPageViewModel(new FakeChatShellService(CreateShellStateWithSetup(setupState)));
 
-        Assert.AreEqual("Complete WorkIQ bootstrap", viewModel.SetupTitle);
-        StringAssert.Contains(viewModel.EulaStepDescription, "complete the WorkIQ consent bootstrap before the first live session");
-        StringAssert.Contains(viewModel.AuthStepDescription, "during bootstrap before the first live WorkIQ session");
+        Assert.AreEqual("Complete WorkICQ bootstrap", viewModel.SetupTitle);
+        StringAssert.Contains(viewModel.EulaStepDescription, "complete the WorkICQ consent bootstrap before the first live session");
+        StringAssert.Contains(viewModel.AuthStepDescription, "during bootstrap before the first live WorkICQ session");
     }
 
     [TestMethod]
-    public async Task SendAsync_WhenWorkIqRequestIsBlocked_ShowsBlockingStatusInsteadOfPlaceholderStatus()
+    public async Task SendAsync_WhenWorkICQRequestIsBlocked_ShowsBlockingStatusInsteadOfPlaceholderStatus()
     {
         var conversation = CreateConversation(
             "thread-1",
             "Org lookup",
             DateTime.Now.AddMinutes(-5),
             "Latest answer",
-            new ShellMessageSnapshot(ChatRole.Assistant, "WorkIQ", "Latest answer", DateTime.Now.AddMinutes(-5)));
+            new ShellMessageSnapshot(ChatRole.Assistant, "WorkICQ", "Latest answer", DateTime.Now.AddMinutes(-5)));
         var shellState = CreateShellState(conversation);
         var streamGate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var service = new FakeChatShellService(shellState)
@@ -199,8 +199,8 @@ public sealed class MainPageViewModelTests
                 IsPersisted: true,
                 IsDraft: false,
                 SessionId: "session-thread-1",
-                ConnectionBadgeText: "WorkIQ blocked",
-                SidebarFooterText: "This workplace request requires a live WorkIQ call.",
+                ConnectionBadgeText: "WorkICQ blocked",
+                SidebarFooterText: "This workplace request requires a live WorkICQ call.",
                 ResponseStream: CreateBlockedResponseStream(streamGate.Task),
                 ActivityStream: EmptyActivityStream()))
         };
@@ -210,9 +210,9 @@ public sealed class MainPageViewModelTests
         viewModel.ComposerText = "Who are my direct reports?";
 
         var sendTask = viewModel.SendAsync();
-        await WaitForConditionAsync(() => viewModel.ComposerStatusText == "Showing WorkIQ blocking error…");
+        await WaitForConditionAsync(() => viewModel.ComposerStatusText == "Showing WorkICQ blocking error…");
 
-        Assert.AreEqual("Showing WorkIQ blocking error…", viewModel.ComposerStatusText);
+        Assert.AreEqual("Showing WorkICQ blocking error…", viewModel.ComposerStatusText);
 
         streamGate.SetResult();
         await sendTask;
@@ -226,15 +226,15 @@ public sealed class MainPageViewModelTests
                 IsEulaAccepted: true,
                 IsAuthenticationHandoffStarted: true,
                 SummaryText: "Ready",
-                WorkIQPackageReference: "@microsoft/workiq",
+                WorkIQPackageReference: "@microsoft/WorkICQ",
                 WorkspacePath: "C:\\WorkIQC",
                 McpConfigPath: "C:\\WorkIQC\\.copilot\\mcp-config.json",
                 EulaUrl: "https://github.com/microsoft/work-iq-mcp",
                 EulaMarkerPath: "C:\\WorkIQC\\eula.json",
                 AuthenticationMarkerPath: "C:\\WorkIQC\\auth.json",
                 AuthenticationCommandLine: "copilot login",
-                Blockers: Array.Empty<string>(),
-                Prerequisites: Array.Empty<string>()),
+                Blockers: Array.Empty<SetupCheckItem>(),
+                Prerequisites: Array.Empty<SetupCheckItem>()),
             conversations);
 
     private static ShellBootstrapState CreateShellStateWithSetup(ShellSetupState setupState, params ShellConversationSnapshot[] conversations)
@@ -278,7 +278,7 @@ public sealed class MainPageViewModelTests
     private static async IAsyncEnumerable<string> CreateBlockedResponseStream(Task gateTask)
     {
         await gateTask;
-        yield return "## WorkIQ request blocked";
+        yield return "## WorkICQ request blocked";
     }
 
     private static IAsyncEnumerable<string> EmptyActivityStream()
