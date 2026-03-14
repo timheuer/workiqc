@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Text.Json;
+using System.Diagnostics;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.Web.WebView2.Core;
 using WorkIQC.App.Services;
@@ -35,6 +36,9 @@ public sealed partial class MarkdownMessageView : UserControl
     private Task? _initializeTask;
     private Exception? _initializationFailure;
     private int _initRetryCount;
+    private int _navigationRetryCount;
+    
+    private string InstanceTag => GetHashCode().ToString("X8");
 
     public MarkdownMessageView()
     {
@@ -69,6 +73,7 @@ public sealed partial class MarkdownMessageView : UserControl
             return;
         }
 
+        view.Log("prop.changed", $"{args.Property}, loaded={view._isLoaded}, webReady={view._isWebViewReady}");
         view.UpdateFallbackState();
         if (view._isLoaded)
         {
@@ -79,6 +84,7 @@ public sealed partial class MarkdownMessageView : UserControl
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _isLoaded = true;
+        Log("loaded", $"width={ActualWidth:F1}, markdownLen={(Markdown?.Length ?? 0)}");
         ApplyAvailableWidth(ActualWidth);
         UpdateFallbackState();
         await RenderAsync();
@@ -107,15 +113,18 @@ public sealed partial class MarkdownMessageView : UserControl
     {
         if (!_isLoaded)
         {
+            Log("render.skip", "not loaded");
             return;
         }
 
         if (_renderInProgress)
         {
             _renderPending = true;
+            Log("render.queue", "render already in progress");
             return;
         }
 
+        Log("render.begin", $"webReady={_isWebViewReady}, initFail={_initializationFailure is not null}, markdownLen={(Markdown?.Length ?? 0)}");
         _renderInProgress = true;
         try
         {
@@ -125,6 +134,7 @@ public sealed partial class MarkdownMessageView : UserControl
                 await EnsureWebViewAsync();
                 if (_initializationFailure is not null || !_isWebViewReady)
                 {
+                    Log("render.fallback", $"reason=init, retry={_initRetryCount}, ex={_initializationFailure?.GetType().Name}:{_initializationFailure?.Message}");
                     ShowFallback();
                     continue;
                 }
@@ -132,6 +142,15 @@ public sealed partial class MarkdownMessageView : UserControl
                 var html = MarkdownHtmlRenderer.RenderDocument(Markdown ?? string.Empty, BuildPalette());
                 if (string.Equals(html, _lastRenderedHtml, StringComparison.Ordinal))
                 {
+                    if (MarkdownWebView.Visibility != Visibility.Visible)
+                    {
+                        Log("render.sameHtml.recover", "webview hidden, forcing navigate");
+                        ShowWebView();
+                        MarkdownWebView.NavigateToString(html);
+                        continue;
+                    }
+
+                    Log("render.sameHtml", "updating height only");
                     await UpdateHeightAsync();
                     continue;
                 }
@@ -139,6 +158,7 @@ public sealed partial class MarkdownMessageView : UserControl
                 _lastRenderedHtml = html;
                 ApplyAvailableWidth(ActualWidth);
                 ShowWebView();
+                Log("render.navigate", $"htmlLen={html.Length}");
                 MarkdownWebView.NavigateToString(html);
             }
             while (_renderPending);
@@ -153,6 +173,7 @@ public sealed partial class MarkdownMessageView : UserControl
     {
         if (_initializationFailure is not null && _initRetryCount < 3)
         {
+            Log("init.retry", $"clearing previous failure (retry={_initRetryCount})");
             _initializationFailure = null;
             _initializeTask = null;
         }
@@ -177,11 +198,13 @@ public sealed partial class MarkdownMessageView : UserControl
             MarkdownWebView.CoreWebView2.NavigationStarting += OnNavigationStarting;
             MarkdownWebView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
             _isWebViewReady = true;
+            Log("init.success", "WebView2 initialized");
         }
         catch (Exception exception)
         {
             _initializationFailure = exception;
             _initRetryCount++;
+            Log("init.failed", $"retry={_initRetryCount}, ex={exception.GetType().Name}:{exception.Message}");
         }
     }
 
@@ -189,10 +212,31 @@ public sealed partial class MarkdownMessageView : UserControl
     {
         if (!args.IsSuccess)
         {
+            if (args.WebErrorStatus == CoreWebView2WebErrorStatus.ConnectionAborted)
+            {
+                // A newer NavigateToString call aborted this navigation; this is expected
+                // during rapid rebind/switch scenarios and should not trigger fallback.
+                Log("nav.aborted", "ignoring connection-aborted navigation");
+                return;
+            }
+
+            _lastRenderedHtml = null;
+            _navigationRetryCount++;
+            Log("nav.failed", $"retry={_navigationRetryCount}, error={args.WebErrorStatus}");
+            if (_navigationRetryCount <= 2)
+            {
+                _ = RenderAsync();
+                return;
+            }
+
+            Log("nav.fallback", "max retries reached");
             ShowFallback();
             return;
         }
 
+        _navigationRetryCount = 0;
+        ShowWebView();
+        Log("nav.success", "updating height");
         await UpdateHeightAsync();
     }
 
@@ -204,10 +248,11 @@ public sealed partial class MarkdownMessageView : UserControl
             var height = ParseScriptHeight(rawHeight);
             MarkdownWebView.Height = Math.Max(1, Math.Ceiling(height) + 2);
         }
-        catch
+        catch (Exception exception)
         {
             // Transient script failure — keep the WebView2 visible with current height
             // rather than permanently switching to raw-text fallback.
+            Log("height.failed", $"{exception.GetType().Name}:{exception.Message}");
         }
     }
 
@@ -318,4 +363,7 @@ public sealed partial class MarkdownMessageView : UserControl
             return 0;
         }
     }
+
+    private void Log(string stage, string message)
+        => Trace.WriteLine($"[{DateTimeOffset.Now:O}] [WorkIQC.Markdown] [{stage}] ({InstanceTag}) {message}");
 }
