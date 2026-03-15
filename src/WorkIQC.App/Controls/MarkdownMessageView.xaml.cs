@@ -73,7 +73,6 @@ public sealed partial class MarkdownMessageView : UserControl
             return;
         }
 
-        view.Log("prop.changed", $"{args.Property}, loaded={view._isLoaded}, webReady={view._isWebViewReady}");
         view.UpdateFallbackState();
         if (view._isLoaded)
         {
@@ -84,7 +83,6 @@ public sealed partial class MarkdownMessageView : UserControl
     private async void OnLoaded(object sender, RoutedEventArgs e)
     {
         _isLoaded = true;
-        Log("loaded", $"width={ActualWidth:F1}, markdownLen={(Markdown?.Length ?? 0)}");
         ApplyAvailableWidth(ActualWidth);
         UpdateFallbackState();
         await RenderAsync();
@@ -113,18 +111,15 @@ public sealed partial class MarkdownMessageView : UserControl
     {
         if (!_isLoaded)
         {
-            Log("render.skip", "not loaded");
             return;
         }
 
         if (_renderInProgress)
         {
             _renderPending = true;
-            Log("render.queue", "render already in progress");
             return;
         }
 
-        Log("render.begin", $"webReady={_isWebViewReady}, initFail={_initializationFailure is not null}, markdownLen={(Markdown?.Length ?? 0)}");
         _renderInProgress = true;
         try
         {
@@ -144,13 +139,11 @@ public sealed partial class MarkdownMessageView : UserControl
                 {
                     if (MarkdownWebView.Visibility != Visibility.Visible)
                     {
-                        Log("render.sameHtml.recover", "webview hidden, forcing navigate");
                         ShowWebView();
                         MarkdownWebView.NavigateToString(html);
                         continue;
                     }
 
-                    Log("render.sameHtml", "updating height only");
                     await UpdateHeightAsync();
                     continue;
                 }
@@ -158,7 +151,6 @@ public sealed partial class MarkdownMessageView : UserControl
                 _lastRenderedHtml = html;
                 ApplyAvailableWidth(ActualWidth);
                 ShowWebView();
-                Log("render.navigate", $"htmlLen={html.Length}");
                 MarkdownWebView.NavigateToString(html);
             }
             while (_renderPending);
@@ -173,7 +165,6 @@ public sealed partial class MarkdownMessageView : UserControl
     {
         if (_initializationFailure is not null && _initRetryCount < 3)
         {
-            Log("init.retry", $"clearing previous failure (retry={_initRetryCount})");
             _initializationFailure = null;
             _initializeTask = null;
         }
@@ -198,7 +189,6 @@ public sealed partial class MarkdownMessageView : UserControl
             MarkdownWebView.CoreWebView2.NavigationStarting += OnNavigationStarting;
             MarkdownWebView.CoreWebView2.NewWindowRequested += OnNewWindowRequested;
             _isWebViewReady = true;
-            Log("init.success", "WebView2 initialized");
         }
         catch (Exception exception)
         {
@@ -216,7 +206,6 @@ public sealed partial class MarkdownMessageView : UserControl
             {
                 // A newer NavigateToString call aborted this navigation; this is expected
                 // during rapid rebind/switch scenarios and should not trigger fallback.
-                Log("nav.aborted", "ignoring connection-aborted navigation");
                 return;
             }
 
@@ -236,7 +225,6 @@ public sealed partial class MarkdownMessageView : UserControl
 
         _navigationRetryCount = 0;
         ShowWebView();
-        Log("nav.success", "updating height");
         await UpdateHeightAsync();
     }
 
@@ -252,7 +240,6 @@ public sealed partial class MarkdownMessageView : UserControl
         {
             // Transient script failure — keep the WebView2 visible with current height
             // rather than permanently switching to raw-text fallback.
-            Log("height.failed", $"{exception.GetType().Name}:{exception.Message}");
         }
     }
 

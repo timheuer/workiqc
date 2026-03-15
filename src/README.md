@@ -9,7 +9,7 @@ WinUI 3 Windows App SDK application. Main desktop app shell.
 
 **Key files:**
 - `App.xaml.cs` — Application startup and DI configuration
-- `Views/MainPage.xaml` — Main chat view (template placeholder)
+- `Views/MainPage.xaml` — Main chat shell
 
 ### WorkIQC.Persistence
 SQLite-based persistence layer using Entity Framework Core.
@@ -27,12 +27,9 @@ Runtime seam for Copilot + WorkIQ integration.
 - App-managed `.copilot\mcp-config.json` generation for WorkIQ
 - Dependency discovery/readiness reporting for Copilot CLI, Node.js, npm, and npx
 - Explicit EULA marker reporting for first-run flow
-
-**What is still intentionally blocked:**
-- Live Copilot session creation/resume/disposal
+- Live Copilot session creation, resume, disposal, and model-aware session reuse
 - Live message dispatch, assistant streaming, and WorkIQ tool event observation
-
-Those unsupported actions fail with typed runtime exceptions or structured failure state instead of vague placeholders.
+- Blocking responses when the live WorkIQ path is unavailable or not invoked
 
 ## Building
 
@@ -78,7 +75,7 @@ var conversationService = (Application.Current as App)?.Services?.GetService<ICo
 
 ## Next Steps
 
-- [ ] Wire the real Copilot SDK session lifecycle into `ISessionCoordinator`
-- [ ] Replace simulated UI streaming with `IMessageOrchestrator`
-- [ ] Persist explicit WorkIQ EULA acceptance during first-run flow
-- [ ] Keep WorkIQ package version pinned in production bootstrap
+- [ ] Simplify duplicated runtime/bootstrap code shared between the App and Runtime layers
+- [ ] Reduce hot-path diagnostic noise while preserving lifecycle and failure evidence
+- [ ] Batch shell-history loading to avoid per-conversation message/session fetches
+- [ ] Revisit project boundaries and references once the first simplification pass is complete

@@ -566,7 +566,7 @@ public sealed class CopilotBootstrap : ICopilotBootstrap
     private string ResolveEulaMarkerPath()
     {
         var configuredMarkerPath = string.IsNullOrWhiteSpace(_options.EulaMarkerPath)
-            ? Path.Combine(ResolveWorkspacePath(null), ".workiq", "eula-accepted.json")
+            ? WorkIQRuntimeDefaults.GetEulaMarkerPath(ResolveWorkspacePath(null))
             : Environment.ExpandEnvironmentVariables(_options.EulaMarkerPath);
 
         return Path.GetFullPath(configuredMarkerPath);
@@ -575,7 +575,7 @@ public sealed class CopilotBootstrap : ICopilotBootstrap
     private string ResolveAuthenticationMarkerPath()
     {
         var configuredMarkerPath = string.IsNullOrWhiteSpace(_options.AuthenticationMarkerPath)
-            ? Path.Combine(ResolveWorkspacePath(null), ".workiq", "auth-handoff.json")
+            ? WorkIQRuntimeDefaults.GetAuthenticationMarkerPath(ResolveWorkspacePath(null))
             : Environment.ExpandEnvironmentVariables(_options.AuthenticationMarkerPath);
 
         return Path.GetFullPath(configuredMarkerPath);

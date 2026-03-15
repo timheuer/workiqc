@@ -71,6 +71,8 @@ public sealed class ChatShellServiceTests
 
         Assert.AreEqual("Local history", state.ConnectionBadgeText);
         StringAssert.Contains(state.SidebarFooterText, "WorkICQ bootstrap check failed: bootstrap exploded");
+        StringAssert.Contains(state.SetupState.EulaMarkerPath, ".workiq");
+        StringAssert.Contains(state.SetupState.AuthenticationMarkerPath, ".workiq");
     }
 
     [TestMethod]
@@ -150,9 +152,9 @@ public sealed class ChatShellServiceTests
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(response.ConversationId);
 
-        Assert.AreEqual("Runtime blocked", response.ConnectionBadgeText);
+        Assert.AreEqual("WorkICQ blocked", response.ConnectionBadgeText);
         StringAssert.Contains(response.SidebarFooterText, "Copilot CLI missing.");
-        StringAssert.Contains(assistant, "## Runtime request blocked");
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
         StringAssert.Contains(assistant, "**markdown**");
         StringAssert.Contains(assistant, "`code`");
         Assert.IsFalse(assistant.Contains("## Placeholder response for", StringComparison.Ordinal));
@@ -209,6 +211,9 @@ public sealed class ChatShellServiceTests
             capturedModelId = modelId;
             return Task.FromResult(sessionId == "session-restore");
         };
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -238,6 +243,9 @@ public sealed class ChatShellServiceTests
             CreatedAt = DateTimeOffset.UtcNow
         });
         fixture.SessionCoordinator.OnCreateSessionAsync = (config, _) => Task.FromResult("session-new");
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -284,6 +292,30 @@ public sealed class ChatShellServiceTests
     }
 
     [TestMethod]
+    public async Task SendAsync_WhenToolNameIncludesAskWorkIq_AcceptsTheRuntimeResponse()
+    {
+        await using var fixture = await ChatShellServiceFixture.CreateAsync();
+        var conversation = await fixture.CreateConversationAsync("Tool name variant");
+        fixture.SessionCoordinator.OnCreateSessionAsync = (_, _) => Task.FromResult("created-session");
+        fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
+            Task.FromResult(new SendMessageResponse { SessionId = "created-session", MessageId = "message-6" });
+        fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream("Schedule confirmed.");
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent("WorkICQ-ask_work_iq", ToolEventType.Started, "Querying WorkICQ"),
+            CreateToolEvent("WorkICQ-ask_work_iq", ToolEventType.Completed));
+
+        var response = await fixture.Service.SendAsync(new ShellSendRequest(
+            conversation.Id,
+            conversation.Title,
+            "What is my schedule on Wednesday?",
+            SessionId: null, ModelId: null));
+        var assistant = await ReadAllAsync(response.ResponseStream);
+
+        Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
+        Assert.AreEqual("Schedule confirmed.", assistant);
+    }
+
+    [TestMethod]
     public async Task SendAsync_WhenStoredSessionExists_ReusesItAndPreservesMarkdownContent()
     {
         await using var fixture = await ChatShellServiceFixture.CreateAsync();
@@ -311,6 +343,9 @@ public sealed class ChatShellServiceTests
         fixture.MessageOrchestrator.OnSendMessageAsync = (request, _) =>
             Task.FromResult(new SendMessageResponse { SessionId = request.SessionId!, MessageId = "message-1" });
         fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream(markdown);
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -338,6 +373,9 @@ public sealed class ChatShellServiceTests
         fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
             Task.FromResult(new SendMessageResponse { SessionId = "live-session", MessageId = "message-WorkICQ" });
         fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream("- Sam Carter", "\n- Priya Patel");
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started, "Querying WorkICQ"),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -345,11 +383,13 @@ public sealed class ChatShellServiceTests
             "Who are my direct reports?",
             SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
+        var runtimeRequest = fixture.MessageOrchestrator.SendRequests.Single();
 
         Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
         Assert.AreEqual(1, fixture.SessionCoordinator.CreateSessionCallCount);
         Assert.HasCount(1, fixture.MessageOrchestrator.SendRequests);
-        Assert.AreEqual("Who are my direct reports?", fixture.MessageOrchestrator.SendRequests.Single().UserMessage);
+        StringAssert.Contains(runtimeRequest.UserMessage, "You must invoke a WorkICQ MCP tool on this turn before producing any final answer.");
+        StringAssert.Contains(runtimeRequest.UserMessage, "Who are my direct reports?");
         Assert.AreEqual("- Sam Carter\n- Priya Patel", assistant);
     }
 
@@ -368,6 +408,9 @@ public sealed class ChatShellServiceTests
         fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
             Task.FromResult(new SendMessageResponse { SessionId = "resolved-session", MessageId = "message-2" });
         fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream("First ", "second");
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -389,12 +432,16 @@ public sealed class ChatShellServiceTests
             "The app name WorkIQC identifies the desktop shell only. It is not a knowledge source.",
             capturedConfig.SystemGuidance["app-identity"]);
         StringAssert.Contains(capturedConfig.SystemGuidance["answer-sources"], "Never answer from local history");
-        Assert.AreEqual("WorkICQ-first", capturedConfig.SystemGuidance["tool-posture"]);
+        Assert.AreEqual("WorkICQ-required", capturedConfig.SystemGuidance["tool-posture"]);
+        StringAssert.Contains(capturedConfig.SystemGuidance["tool-requirement"], "Invoke a WorkICQ MCP tool on every user turn");
         StringAssert.Contains(capturedConfig.SystemGuidance["current-user"], "currently authenticated Copilot/WorkICQ user");
-        StringAssert.Contains(capturedConfig.SystemGuidance["principal-resolution"], "Only ask the user for their own name or work email if the WorkICQ tool explicitly reports");
+        StringAssert.Contains(capturedConfig.SystemGuidance["principal-resolution"], "Invoke WorkICQ before answering first-person workplace questions");
+        StringAssert.Contains(capturedConfig.SystemGuidance["calendar-routing"], "what is my schedule on Wednesday");
         StringAssert.Contains(capturedConfig.SystemGuidance["eula-recovery"], "complete the WorkICQ consent bootstrap in Settings");
         StringAssert.Contains(capturedConfig.SystemGuidance["allowed-tools"], "ask_work_iq");
         CollectionAssert.AreEqual(new[] { "*" }, capturedConfig.AllowedTools.ToArray());
+        StringAssert.Contains(fixture.MessageOrchestrator.SendRequests.Single().UserMessage, "WorkICQ-only shell requirement:");
+        StringAssert.Contains(fixture.MessageOrchestrator.SendRequests.Single().UserMessage, "Send it live");
         Assert.AreEqual("resolved-session", await fixture.GetSessionIdAsync(conversation.Id));
     }
 
@@ -490,10 +537,10 @@ public sealed class ChatShellServiceTests
             SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
-        Assert.AreEqual("Runtime blocked", response.ConnectionBadgeText);
-        StringAssert.Contains(response.SidebarFooterText, "Copilot SDK handoff failed before the request could run.");
+        Assert.AreEqual("WorkICQ blocked", response.ConnectionBadgeText);
+        StringAssert.Contains(response.SidebarFooterText, "live WorkICQ handoff failed before the request could run.");
         StringAssert.Contains(response.SidebarFooterText, "Gateway timeout");
-        StringAssert.Contains(assistant, "## Runtime request blocked");
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
     }
 
     [TestMethod]
@@ -533,6 +580,9 @@ public sealed class ChatShellServiceTests
         fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
             Task.FromResult(new SendMessageResponse { SessionId = "created-session", MessageId = "message-4" });
         fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream(string.Empty);
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -542,7 +592,7 @@ public sealed class ChatShellServiceTests
         var assistant = await ReadAllAsync(response.ResponseStream);
         var persistedConversation = await fixture.GetConversationAsync(conversation.Id);
 
-        StringAssert.StartsWith(assistant, "## Runtime request blocked");
+        StringAssert.StartsWith(assistant, "## WorkICQ request blocked");
         StringAssert.Contains(assistant, "finished without returning answer content");
         Assert.AreEqual(
             assistant.TrimEnd().ReplaceLineEndings(Environment.NewLine),
@@ -558,6 +608,9 @@ public sealed class ChatShellServiceTests
         fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
             Task.FromResult(new SendMessageResponse { SessionId = "created-session", MessageId = "message-4" });
         fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream(string.Empty);
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Started),
+            CreateToolEvent(WorkIQRuntimeDefaults.AskWorkIqToolName, ToolEventType.Completed));
 
         var response = await fixture.Service.SendAsync(new ShellSendRequest(
             conversation.Id,
@@ -592,10 +645,39 @@ public sealed class ChatShellServiceTests
             SessionId: null, ModelId: null));
         var assistant = await ReadAllAsync(response.ResponseStream);
 
-        Assert.AreEqual("Runtime blocked", response.ConnectionBadgeText);
+        Assert.AreEqual("WorkICQ blocked", response.ConnectionBadgeText);
         StringAssert.Contains(response.SidebarFooterText, "Session orchestration is not ready.");
         StringAssert.Contains(response.SidebarFooterText, "Keep the shell blocked for this release.");
-        StringAssert.Contains(assistant, "## Runtime request blocked");
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
+    }
+
+    [TestMethod]
+    public async Task SendAsync_WhenRuntimeDoesNotInvokeWorkIqTool_ReturnsBlockingResponseInsteadOfAssistantText()
+    {
+        await using var fixture = await ChatShellServiceFixture.CreateAsync();
+        var conversation = await fixture.CreateConversationAsync("Missing WorkICQ tool");
+        fixture.SessionCoordinator.OnCreateSessionAsync = (_, _) => Task.FromResult("created-session");
+        fixture.MessageOrchestrator.OnSendMessageAsync = (_, _) =>
+            Task.FromResult(new SendMessageResponse { SessionId = "created-session", MessageId = "message-5" });
+        fixture.MessageOrchestrator.OnStreamResponseAsync = (_, _) => Stream("Here is a generic answer.");
+        fixture.MessageOrchestrator.OnObserveToolEventsAsync = (_, _) => ToolEvents(
+            CreateToolEvent("thinking", ToolEventType.Progress, "Reasoning without WorkICQ"));
+
+        var response = await fixture.Service.SendAsync(new ShellSendRequest(
+            conversation.Id,
+            conversation.Title,
+            "Tell me something",
+            SessionId: null, ModelId: null));
+        var assistant = await ReadAllAsync(response.ResponseStream);
+        var persistedConversation = await fixture.GetConversationAsync(conversation.Id);
+
+        Assert.AreEqual("WorkICQ runtime", response.ConnectionBadgeText);
+        StringAssert.Contains(assistant, "## WorkICQ request blocked");
+        StringAssert.Contains(assistant, "without invoking a WorkICQ tool");
+        Assert.IsFalse(assistant.Contains("Here is a generic answer.", StringComparison.Ordinal));
+        Assert.AreEqual(
+            assistant.TrimEnd().ReplaceLineEndings(Environment.NewLine),
+            persistedConversation!.Messages.OrderBy(message => message.Timestamp).Last().Content.ReplaceLineEndings(Environment.NewLine));
     }
 
     private static RuntimeReadinessReport CreateReadyReport(string subject)
@@ -690,6 +772,23 @@ public sealed class ChatShellServiceTests
             await Task.Yield();
         }
     }
+
+    private static async IAsyncEnumerable<ToolEvent> ToolEvents(params ToolEvent[] events)
+    {
+        foreach (var toolEvent in events)
+        {
+            yield return toolEvent;
+            await Task.Yield();
+        }
+    }
+
+    private static ToolEvent CreateToolEvent(string toolName, ToolEventType eventType, string? statusMessage = null)
+        => new()
+        {
+            ToolName = toolName,
+            EventType = eventType,
+            StatusMessage = statusMessage
+        };
 
     private sealed class ChatShellServiceFixture : IAsyncDisposable
     {
@@ -964,6 +1063,9 @@ public sealed class ChatShellServiceTests
         public Func<string, CancellationToken, IAsyncEnumerable<StreamingDelta>> OnStreamResponseAsync { get; set; } =
             (_, _) => Stream("ready");
 
+        public Func<string, CancellationToken, IAsyncEnumerable<ToolEvent>> OnObserveToolEventsAsync { get; set; } =
+            (_, _) => ToolEvents();
+
         public List<SendMessageRequest> SendRequests { get; } = [];
 
         public Task<SendMessageResponse> SendMessageAsync(SendMessageRequest request, CancellationToken cancellationToken = default)
@@ -977,9 +1079,10 @@ public sealed class ChatShellServiceTests
 
         public async IAsyncEnumerable<ToolEvent> ObserveToolEventsAsync(string sessionId, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.CompletedTask;
-            yield break;
+            await foreach (var toolEvent in OnObserveToolEventsAsync(sessionId, cancellationToken).WithCancellation(cancellationToken))
+            {
+                yield return toolEvent;
+            }
         }
     }
 }

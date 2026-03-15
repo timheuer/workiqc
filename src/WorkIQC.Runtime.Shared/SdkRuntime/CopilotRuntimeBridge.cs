@@ -34,7 +34,7 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
             await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var handle = RegisterSession(host, sdkSession, NormalizeModelId(config.ModelId));
+                var handle = RegisterSession(host, sdkSession, WorkIQTextUtilities.NormalizeModelId(config.ModelId));
                 WriteDiagnostic("session.create", $"Created runtime session '{handle.SessionId}' for workspace '{config.WorkspacePath}' using model '{handle.State.ModelId ?? "<default>"}'.");
                 return handle.SessionId;
             }
@@ -59,7 +59,7 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
     public async Task<bool> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
     {
         ValidateSessionId(sessionId);
-        var normalizedModelId = NormalizeModelId(modelId);
+        var normalizedModelId = WorkIQTextUtilities.NormalizeModelId(modelId);
 
         if (_sessions.TryGetValue(sessionId, out var activeHandle))
         {
@@ -377,12 +377,11 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         {
             case AssistantMessageDeltaRuntimeEvent delta when turn is not null:
                 turn.TryWriteAssistantDelta(delta.Content);
-                WriteDiagnostic("turn.delta", $"Session '{handle.SessionId}' assistant delta ({delta.Content.Length} chars): {Truncate(delta.Content, 80)}");
                 break;
 
             case AssistantMessageCompletedRuntimeEvent completed when turn is not null:
                 turn.FinalAssistantContent = completed.Content;
-                WriteDiagnostic("turn.complete", $"Session '{handle.SessionId}' produced a completed assistant message ({completed.Content.Length} chars): {Truncate(completed.Content, 120)}");
+                WriteDiagnostic("turn.complete", $"Session '{handle.SessionId}' produced a completed assistant message ({completed.Content.Length} chars).");
                 break;
 
             case ToolStartedRuntimeEvent toolStarted when turn is not null:
@@ -469,9 +468,6 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
         => string.Equals(exception.ErrorCode, "runtime.session.not-found", StringComparison.Ordinal)
             || exception.Message.Contains("not found", StringComparison.OrdinalIgnoreCase)
             || exception.Message.Contains("No session", StringComparison.OrdinalIgnoreCase);
-
-    private static string? NormalizeModelId(string? modelId)
-        => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
 
     private sealed class WorkspaceHost
     {
@@ -644,13 +640,4 @@ internal sealed class CopilotRuntimeBridge : ICopilotRuntimeBridge
     private static void WriteDiagnostic(string stage, string message)
         => Trace.WriteLine($"[{DateTimeOffset.Now:O}] [WorkIQC.RuntimeBridge] [{stage}] {message}");
 
-    private static string Truncate(string value, int maxLength)
-    {
-        if (string.IsNullOrEmpty(value) || value.Length <= maxLength)
-        {
-            return value;
-        }
-
-        return string.Concat(value.AsSpan(0, maxLength), "…");
-    }
 }

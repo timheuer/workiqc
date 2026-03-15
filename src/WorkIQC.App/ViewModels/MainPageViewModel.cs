@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using Microsoft.UI.Xaml;
 using WorkIQC.App.Models;
 using WorkIQC.App.Services;
+using WorkIQC.Runtime.Abstractions.Models;
 
 namespace WorkIQC.App.ViewModels
 {
@@ -374,7 +375,7 @@ namespace WorkIQC.App.ViewModels
 
             if (conversation.IsDraft)
             {
-                conversation.Title = BuildTitle(prompt);
+                conversation.Title = WorkIQTextUtilities.BuildConversationTitle(prompt);
                 conversation.IsDraft = false;
             }
 
@@ -684,7 +685,7 @@ namespace WorkIQC.App.ViewModels
         private void SetConversationProcessing(ConversationSeed conversation, bool isProcessing)
         {
             conversation.IsProcessing = isProcessing;
-            conversation.RuntimeActivityText = isProcessing ? null : null;
+            conversation.RuntimeActivityText = null;
 
             // Update the matching sidebar item
             foreach (var item in SidebarItems)
@@ -772,7 +773,7 @@ namespace WorkIQC.App.ViewModels
 
         private void SetSelectedModel(string? modelId, bool updateDefaultSelection, bool updateConversationSelection)
         {
-            var normalizedModelId = NormalizeModelId(modelId);
+            var normalizedModelId = WorkIQTextUtilities.NormalizeModelId(modelId);
             if (updateDefaultSelection)
             {
                 _defaultModelId = normalizedModelId;
@@ -818,13 +819,6 @@ namespace WorkIQC.App.ViewModels
                 _ => "Streaming placeholder response…"
             };
 
-        private static string BuildTitle(string prompt)
-        {
-            const int maxLength = 42;
-            var singleLine = prompt.Replace(Environment.NewLine, " ").Trim();
-            return singleLine.Length <= maxLength ? singleLine : string.Concat(singleLine.Substring(0, maxLength).TrimEnd(), "…");
-        }
-
         private static string GetGroupTitle(DateTime timestamp)
         {
             var today = DateTime.Now.Date;
@@ -861,9 +855,6 @@ namespace WorkIQC.App.ViewModels
 
             return timestamp.ToString("m");
         }
-
-        private static string? NormalizeModelId(string? modelId)
-            => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
 
         private sealed class ConversationSeed
         {

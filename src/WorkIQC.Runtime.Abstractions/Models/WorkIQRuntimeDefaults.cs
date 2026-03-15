@@ -2,6 +2,9 @@ namespace WorkIQC.Runtime.Abstractions.Models;
 
 public static class WorkIQRuntimeDefaults
 {
+    public const string MarkerFolderName = ".workiq";
+    public const string EulaMarkerFileName = "eula-accepted.json";
+    public const string AuthenticationMarkerFileName = "auth-handoff.json";
     public const string PackageName = "@microsoft/workiq";
     public const string PackageReference = PackageName;
     public const string ServerName = "workiq";
@@ -21,4 +24,10 @@ public static class WorkIQRuntimeDefaults
     [
         "*"
     ];
+
+    public static string GetEulaMarkerPath(string workspacePath)
+        => Path.Combine(workspacePath, MarkerFolderName, EulaMarkerFileName);
+
+    public static string GetAuthenticationMarkerPath(string workspacePath)
+        => Path.Combine(workspacePath, MarkerFolderName, AuthenticationMarkerFileName);
 }

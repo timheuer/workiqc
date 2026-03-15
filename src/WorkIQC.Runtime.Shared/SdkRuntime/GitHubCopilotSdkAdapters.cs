@@ -65,7 +65,7 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
         await StartAsync(cancellationToken).ConfigureAwait(false);
         WriteDiagnostic(
             "session.create",
-            $"Creating Copilot SDK session with model '{NormalizeModelId(config.ModelId) ?? "<default>"}', allowed tools [{string.Join(", ", config.AllowedTools)}], workspace '{config.WorkspacePath}', and MCP config '{config.McpConfigPath}'.");
+            $"Creating Copilot SDK session with model '{WorkIQTextUtilities.NormalizeModelId(config.ModelId) ?? "<default>"}', allowed tools [{string.Join(", ", config.AllowedTools)}], workspace '{config.WorkspacePath}', and MCP config '{config.McpConfigPath}'.");
 
         try
         {
@@ -97,7 +97,7 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
     public async Task<ICopilotSdkSession> ResumeSessionAsync(string sessionId, string? modelId = null, CancellationToken cancellationToken = default)
     {
         await StartAsync(cancellationToken).ConfigureAwait(false);
-        var normalizedModelId = NormalizeModelId(modelId);
+        var normalizedModelId = WorkIQTextUtilities.NormalizeModelId(modelId);
         WriteDiagnostic("session.resume", $"Attempting to resume Copilot SDK session '{sessionId}' with model '{normalizedModelId ?? "<default>"}'.");
 
         try
@@ -138,7 +138,7 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
             var seenModelIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var model in availableModels)
             {
-                var modelId = NormalizeModelId(model.Id);
+                var modelId = WorkIQTextUtilities.NormalizeModelId(model.Id);
                 if (modelId is null || !seenModelIds.Add(modelId))
                 {
                     continue;
@@ -180,7 +180,7 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
         return new SessionConfig
         {
             OnPermissionRequest = PermissionHandler.ApproveAll,
-            Model = NormalizeModelId(config.ModelId),
+            Model = WorkIQTextUtilities.NormalizeModelId(config.ModelId),
             Streaming = config.EnableStreaming,
             WorkingDirectory = config.WorkspacePath,
             McpServers = BuildMcpServers(config),
@@ -379,8 +379,6 @@ internal sealed class GitHubCopilotSdkClient : ICopilotSdkClient
             ? timeout
             : null;
 
-    private static string? NormalizeModelId(string? modelId)
-        => string.IsNullOrWhiteSpace(modelId) ? null : modelId.Trim();
 }
 
 internal sealed class GitHubCopilotSdkSession : ICopilotSdkSession
@@ -448,7 +446,7 @@ internal sealed class GitHubCopilotSdkSession : ICopilotSdkSession
     public async Task<string> SendAsync(string prompt, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        WriteDiagnostic("prompt.send", $"Dispatching prompt {SummarizePrompt(prompt)}");
+        WriteDiagnostic("prompt.send", $"Dispatching prompt {WorkIQTextUtilities.SummarizePrompt(prompt)}");
         return await _session.SendAsync(new MessageOptions
         {
             Prompt = prompt
@@ -456,12 +454,6 @@ internal sealed class GitHubCopilotSdkSession : ICopilotSdkSession
     }
 
     public ValueTask DisposeAsync() => _session.DisposeAsync();
-
-    private static string SummarizePrompt(string prompt)
-    {
-        var normalized = prompt.ReplaceLineEndings(" ").Trim();
-        return normalized.Length <= 120 ? $"\"{normalized}\"" : $"\"{normalized[..120].TrimEnd()}…\"";
-    }
 
     private static void WriteDiagnostic(string stage, string message)
         => Trace.WriteLine($"[{DateTimeOffset.Now:O}] [WorkIQC.CopilotSdk] [{stage}] {message}");

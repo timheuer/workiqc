@@ -14,16 +14,9 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
     private static readonly IReadOnlyList<string> NodeCommandCandidates = ["node"];
     private static readonly IReadOnlyList<string> NpmCommandCandidates = ["npm"];
     private static readonly IReadOnlyList<string> NpxCommandCandidates = ["npx"];
-    private readonly ICopilotRuntimeBridge _runtimeBridge;
 
     public LocalCopilotBootstrap()
-        : this(CopilotRuntimeBridge.Shared)
     {
-    }
-
-    internal LocalCopilotBootstrap(ICopilotRuntimeBridge runtimeBridge)
-    {
-        _runtimeBridge = runtimeBridge;
     }
 
     public Task<RuntimeReadinessReport> EnsureRuntimeDependenciesAsync(CancellationToken cancellationToken = default)
@@ -400,10 +393,10 @@ public sealed class LocalCopilotBootstrap : ICopilotBootstrap
     }
 
     private static string GetEulaMarkerPath()
-        => Path.Combine(StorageHelper.GetWorkspacePath(), ".WorkICQ", "eula-accepted.json");
+        => WorkIQRuntimeDefaults.GetEulaMarkerPath(StorageHelper.GetWorkspacePath());
 
     private static string GetAuthenticationMarkerPath()
-        => Path.Combine(StorageHelper.GetWorkspacePath(), ".WorkICQ", "auth-handoff.json");
+        => WorkIQRuntimeDefaults.GetAuthenticationMarkerPath(StorageHelper.GetWorkspacePath());
 
     private static string BuildPackageReference(string? version)
         => WorkIQRuntimeDefaults.PackageReference;
