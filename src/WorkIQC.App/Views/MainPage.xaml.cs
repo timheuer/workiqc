@@ -323,36 +323,9 @@ namespace WorkIQC.App.Views
                 return;
             }
 
-            var content = message.Content;
-
-            // Strip follow-up suggestions below the last horizontal rule (---, ***, ___)
-            var lastHrIndex = FindLastHorizontalRule(content);
-            if (lastHrIndex >= 0)
-            {
-                content = content[..lastHrIndex].TrimEnd();
-            }
-
             var dataPackage = new Windows.ApplicationModel.DataTransfer.DataPackage();
-            dataPackage.SetText(content);
+            dataPackage.SetText(MessageCopyFormatter.PrepareForClipboard(message.Content));
             Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(dataPackage);
-        }
-
-        private static int FindLastHorizontalRule(string text)
-        {
-            var lines = text.Split('\n');
-            for (var i = lines.Length - 1; i >= 0; i--)
-            {
-                var trimmed = lines[i].Trim();
-                if (trimmed.Length >= 3
-                    && (trimmed.Replace("-", "") == ""
-                        || trimmed.Replace("*", "") == ""
-                        || trimmed.Replace("_", "") == ""))
-                {
-                    return text.IndexOf(lines[i], StringComparison.Ordinal);
-                }
-            }
-
-            return -1;
         }
 
         private async Task ShowSetupDialogAsync()

@@ -4,6 +4,8 @@
 
 Run commands from `src\`.
 
+The standing goal for every change is a warning-free build. If a validation run still emits warnings, either fix them as part of the change or explicitly alert the user to the remaining warnings and why they could not be reliably resolved within scope.
+
 ```powershell
 dotnet restore WorkIQC.slnx
 dotnet build WorkIQC.slnx
@@ -59,6 +61,7 @@ dotnet test WorkIQC.App.Tests\WorkIQC.App.Tests.csproj --filter "FullyQualifiedN
 - Conversation history and Copilot session state are separate concerns. Messages are persisted in SQLite, but only the Copilot session id is stored for resume. Any change that affects session lifecycle must keep `ConversationService.SetCopilotSessionIdAsync()` in sync with runtime behavior.
 - Diagnostics are important in this repo. App/runtime components use `Trace.WriteLine`, and the desktop app writes a rotating diagnostics log under `%LocalAppData%\WorkIQC\logs\workiqc-runtime.log`.
 - Tests rely heavily on in-memory SQLite and seam-friendly test doubles. `ChatShellServiceTests`, `MainPageViewModelTests`, `CopilotRuntimeBridgeTests`, and `ConversationServiceTests` are the best starting points for matching existing patterns.
+- Treat warnings as real build debt. Prefer leaving the repo in a warning-free state after each change; if a warning must remain, call it out explicitly in your handoff with the reason it was not safely fixable during the task.
 
 ## Commit messages
 

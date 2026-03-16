@@ -236,7 +236,7 @@ public sealed partial class MarkdownMessageView : UserControl
             var height = ParseScriptHeight(rawHeight);
             MarkdownWebView.Height = Math.Max(1, Math.Ceiling(height) + 2);
         }
-        catch (Exception exception)
+        catch (Exception)
         {
             // Transient script failure — keep the WebView2 visible with current height
             // rather than permanently switching to raw-text fallback.

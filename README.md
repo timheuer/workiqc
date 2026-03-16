@@ -9,7 +9,7 @@ A Windows desktop chat client for Microsoft 365 Copilot, powered by the GitHub C
 - **Live WorkIQ integration** — Queries Microsoft 365 Copilot via the WorkIQ MCP tool path
 - **Markdown rendering** — Rich response formatting with tables, code blocks, lists, and headings
 - **Notification sound** — Configurable ICQ "uh oh" alert when responses finish
-- **Copy to clipboard** — One-click copy of response content (strips follow-up suggestions)
+- **Copy to clipboard** — One-click copy of response content (strips recognized follow-up suggestion blocks)
 
 ## Prerequisites
 
